@@ -1,0 +1,17 @@
+{
+  "name": "lsp-intelligence",
+  "version": "0.1.0",
+  "description": "Type-aware code intelligence — impact analysis, semantic diff, and context building via LSP",
+  "mcpServers": {
+    "lsp": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"],
+      "cwd": "${CLAUDE_PLUGIN_ROOT}",
+      "env": {
+        "LSP_WORKSPACE_ROOT": "${CLAUDE_PROJECT_DIR}"
+      }
+    }
+  },
+  "hooks": "hooks/hooks.json",
+  "skills": "skills/"
+}
