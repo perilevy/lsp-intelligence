@@ -26,7 +26,13 @@ export const typeHierarchy = defineTool({
         else {
             return 'Error: Provide either symbol name or file_path + line + column.';
         }
-        const items = await engine.request('textDocument/prepareTypeHierarchy', { textDocument: { uri }, position });
+        let items;
+        try {
+            items = await engine.request('textDocument/prepareTypeHierarchy', { textDocument: { uri }, position });
+        }
+        catch {
+            return 'Type hierarchy is not supported by the current language server.';
+        }
         if (!items || items.length === 0)
             return 'No type hierarchy available for this symbol.';
         const item = items[0];

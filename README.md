@@ -2,7 +2,7 @@
 
 Type-aware code intelligence for AI agents — impact analysis, semantic diff, and context building via LSP.
 
-**25 MCP tools** across 5 layers — from basic navigation to "what breaks if I change this?" in one call.
+**24 MCP tools** across 5 layers — from basic navigation to "what breaks if I change this?" in one call.
 
 Currently supports **TypeScript and JavaScript** projects. The architecture supports other LSP servers — additional language support is planned.
 
@@ -73,7 +73,7 @@ The engine initializes once per session and stays warm. Warmup includes spawning
 
 ## Tools
 
-### Layer 1: Primitives (14 tools)
+### Layer 1: Primitives (13 tools)
 
 Direct LSP wrappers. Every tool accepts **symbol names** — agents never need to guess line numbers.
 
@@ -87,7 +87,6 @@ Direct LSP wrappers. Every tool accepts **symbol names** — agents never need t
 | `document_symbols` | List all symbols in a file. |
 | `workspace_symbols` | Search for symbols by name across the workspace. |
 | `call_hierarchy` | Trace incoming callers or outgoing callees. |
-| `type_hierarchy` | Explore supertypes and subtypes. |
 | `rename` | Preview a semantic rename across the codebase (dry-run by default). |
 | `diagnostics` | Get type errors and warnings for a file. |
 | `completions` | Code completion suggestions. |
@@ -142,7 +141,7 @@ Post-edit verification.
 ├─────────────────────────────────────────────────────────┤
 │ Layer 1: Primitives                     [read-only]      │
 │   find_references, hover, definition, call_hierarchy,   │
-│   type_hierarchy, rename, diagnostics, symbols, etc.    │
+│   rename, diagnostics, symbols, imports, exports        │
 ├─────────────────────────────────────────────────────────┤
 │ Layer 0: LSP Engine                     [infrastructure]  │
 │   TypeScript Server spawn, monorepo preopen,            │

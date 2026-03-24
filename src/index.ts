@@ -17,7 +17,6 @@ import { findImplementations } from './tools/primitives/findImplementations.js';
 import { documentSymbols } from './tools/primitives/documentSymbols.js';
 import { workspaceSymbols } from './tools/primitives/workspaceSymbols.js';
 import { callHierarchy } from './tools/primitives/callHierarchy.js';
-import { typeHierarchy } from './tools/primitives/typeHierarchy.js';
 import { rename } from './tools/primitives/rename.js';
 import { diagnostics } from './tools/primitives/diagnostics.js';
 import { completions } from './tools/primitives/completions.js';
@@ -63,7 +62,6 @@ async function main() {
     documentSymbols,
     workspaceSymbols,
     callHierarchy,
-    typeHierarchy,
     rename,
     diagnostics,
     completions,
