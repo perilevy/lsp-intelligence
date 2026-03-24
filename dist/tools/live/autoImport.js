@@ -96,7 +96,7 @@ export const autoImport = defineTool({
                     const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
                     if (pkgJson.name) {
                         const afterPkg = sourcePath.replace(pkgDir, '');
-                        const cleanPath = afterPkg.replace(/^\/src/, '').replace(/\/index\.tsx?$/, '').replace(/\.tsx?$/, '');
+                        const cleanPath = afterPkg.replace(/^\/?src\//, '').replace(/\/?index\.tsx?$/, '').replace(/\.tsx?$/, '').replace(/\/$/, '');
                         importPath = !cleanPath || cleanPath === '/'
                             ? pkgJson.name
                             : `${pkgJson.name}${cleanPath}`;
