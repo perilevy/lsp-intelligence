@@ -74,35 +74,51 @@ export const autoImport = defineTool({
     const defUri = resolved.uri;
     const defPath = uriToPath(defUri);
 
-    // Follow to the actual definition (not re-export)
-    const def = await engine.request<Location | Location[] | null>(
-      'textDocument/definition', {
-        textDocument: { uri: defUri },
-        position: resolved.position,
-      }, DEFAULT_TIMEOUTS.live,
-    ).catch(() => null);
-
-    const sourcePath = def
-      ? uriToPath(Array.isArray(def) ? def[0].uri : def.uri)
-      : defPath;
+    // Follow to the actual definition — chase up to 3 hops to reach the source
+    let sourcePath = defPath;
+    let currentUri = defUri;
+    let currentPos = resolved.position;
+    for (let hop = 0; hop < 3; hop++) {
+      const def = await engine.request<Location | Location[] | null>(
+        'textDocument/definition', {
+          textDocument: { uri: currentUri },
+          position: currentPos,
+        }, DEFAULT_TIMEOUTS.live,
+      ).catch(() => null);
+      if (!def) break;
+      const loc = Array.isArray(def) ? def[0] : def;
+      const newPath = uriToPath(loc.uri);
+      if (newPath === sourcePath) break; // same file — stop chasing
+      sourcePath = newPath;
+      currentUri = loc.uri;
+      currentPos = loc.range.start;
+    }
 
     const rel = relativePath(sourcePath, engine.workspaceRoot);
     let importPath = rel;
 
+    // Strategy 0: If source is inside node_modules, extract package name directly
+    const nodeModulesMatch = sourcePath.match(/\/node_modules\/((?:@[^/]+\/)?[^/]+)/);
+    if (nodeModulesMatch) {
+      importPath = nodeModulesMatch[1];
+    }
+
     // Strategy 1: Use tsconfig paths (most accurate — respects aliases)
-    const fromDir = params.from_file
-      ? path.dirname(params.from_file)
-      : engine.workspaceRoot;
-    const tsconfigPaths = findTsConfigPaths(fromDir, engine.workspaceRoot);
-    if (tsconfigPaths) {
-      const tsconfigDir = findTsConfigDir(fromDir, engine.workspaceRoot);
-      if (tsconfigDir) {
-        const alias = resolveAlias(sourcePath, tsconfigPaths, tsconfigDir);
-        if (alias) importPath = alias;
+    if (importPath === rel) {
+      const fromDir = params.from_file
+        ? path.dirname(params.from_file)
+        : engine.workspaceRoot;
+      const tsconfigPaths = findTsConfigPaths(fromDir, engine.workspaceRoot);
+      if (tsconfigPaths) {
+        const tsconfigDir = findTsConfigDir(fromDir, engine.workspaceRoot);
+        if (tsconfigDir) {
+          const alias = resolveAlias(sourcePath, tsconfigPaths, tsconfigDir);
+          if (alias) importPath = alias;
+        }
       }
     }
 
-    // Strategy 2: Fall back to package.json name
+    // Strategy 2: Fall back to package.json name for monorepo packages
     if (importPath === rel) {
       const pkgMatch = sourcePath.match(/\/(packages|apps|libs|modules|services)\/([^/]+)\//);
       if (pkgMatch) {
@@ -115,7 +131,7 @@ export const autoImport = defineTool({
             const cleanPath = afterPkg.replace(/^\/?src\//, '').replace(/\/?index\.tsx?$/, '').replace(/\.tsx?$/, '').replace(/\/$/, '');
             importPath = !cleanPath || cleanPath === '/'
               ? pkgJson.name
-              : `${pkgJson.name}${cleanPath}`;
+              : `${pkgJson.name}/${cleanPath}`;
           }
         } catch {}
       }
