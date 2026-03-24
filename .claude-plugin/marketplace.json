@@ -1,0 +1,14 @@
+{
+  "name": "lsp-intelligence",
+  "owner": {
+    "name": "Peri Levy"
+  },
+  "plugins": [
+    {
+      "name": "lsp-intelligence",
+      "source": "./",
+      "description": "Type-aware code intelligence — impact analysis, semantic diff, and context building via LSP",
+      "version": "0.1.2"
+    }
+  ]
+}

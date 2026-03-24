@@ -32,7 +32,56 @@ Or get a file overview without reading it:
 { "tool": "outline", "arguments": { "file_path": "/workspace/src/services/auth.ts" } }
 ```
 
-> All tools that accept `file_path` require absolute paths. The `LSP_WORKSPACE_ROOT` env var tells the engine where your project lives.
+> All tools that accept `file_path` require absolute paths.
+
+## Installation
+
+Requires **Node.js 20+**. Dependencies are installed automatically on first session start.
+
+### Option 1: CLI (recommended)
+
+Add the marketplace and install the plugin:
+
+```shell
+/plugin marketplace add perilevy/lsp-intelligence
+/plugin install lsp-intelligence@lsp-intelligence
+/reload-plugins
+```
+
+### Option 2: Project configuration (team setup)
+
+Add to your project's `.claude/settings.json` — any teammate who clones the repo gets it automatically:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "lsp-intelligence": {
+      "source": {
+        "source": "github",
+        "repo": "perilevy/lsp-intelligence"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "lsp-intelligence@lsp-intelligence": true
+  }
+}
+```
+
+### Option 3: npm source
+
+Use npm source in `marketplace.json` for version pinning and built-in dependency resolution:
+
+```json
+{
+  "name": "lsp-intelligence",
+  "source": {
+    "source": "npm",
+    "package": "lsp-intelligence",
+    "version": "0.1.2"
+  }
+}
+```
 
 ## Capabilities
 

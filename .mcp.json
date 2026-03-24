@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "lsp": {
+      "command": "/bin/sh",
+      "args": ["-c", "cd \"${CLAUDE_PLUGIN_ROOT}\" && test -d node_modules || npm install --omit=dev >&2 && exec node dist/index.js"]
+    }
+  }
+}
