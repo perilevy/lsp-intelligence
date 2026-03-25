@@ -68,58 +68,62 @@ describe('v0.2 Features', () => {
       const result = await findCodeByBehavior.handler(
         { query: 'validation', max_results: 5 },
         engine,
-      );
-      expect(result).toContain('find_code_by_behavior');
-      expect(result).toContain('candidates');
-      // Should find validateConfig, isValidTransition
-      expect(result).toMatch(/validat/i);
+      ) as any;
+      expect(result).toHaveProperty('candidates');
+      expect(result).toHaveProperty('confidence');
+      expect(result.candidates.length).toBeGreaterThan(0);
+      // Should find validateConfig or isValidTransition
+      const names = result.candidates.map((c: any) => c.symbol ?? '').join(' ');
+      expect(names.toLowerCase()).toMatch(/valid/);
     });
 
     it('finds error handling code', async () => {
       const result = await findCodeByBehavior.handler(
         { query: 'error handling', max_results: 5 },
         engine,
-      );
-      expect(result).toContain('find_code_by_behavior');
-      // Should find handleItemError
-      expect(result).toMatch(/error/i);
+      ) as any;
+      expect(result.candidates.length).toBeGreaterThan(0);
+      const names = result.candidates.map((c: any) => c.symbol ?? '').join(' ');
+      expect(names.toLowerCase()).toMatch(/error/);
     });
 
     it('finds permission/auth code', async () => {
       const result = await findCodeByBehavior.handler(
         { query: 'permission checks', max_results: 5 },
         engine,
-      );
-      expect(result).toContain('find_code_by_behavior');
-      // Should find canEditItems
-      expect(result).toMatch(/can|edit|permission|auth/i);
+      ) as any;
+      expect(result.candidates.length).toBeGreaterThan(0);
+      const names = result.candidates.map((c: any) => (c.symbol ?? '') + (c.filePath ?? '')).join(' ').toLowerCase();
+      expect(names).toMatch(/can|edit|permission|auth|guard/);
     });
 
-    it('reports low confidence for vague queries', async () => {
+    it('reports confidence for vague queries', async () => {
       const result = await findCodeByBehavior.handler(
         { query: 'business logic stuff', max_results: 5 },
         engine,
-      );
-      expect(result).toContain('find_code_by_behavior');
-      // Should work without crashing, may report low confidence
-      expect(typeof result).toBe('string');
+      ) as any;
+      expect(result).toHaveProperty('confidence');
+      expect(['high', 'medium', 'low']).toContain(result.confidence);
     });
 
-    it('returns stats with timing', async () => {
+    it('returns structured stats', async () => {
       const result = await findCodeByBehavior.handler(
         { query: 'SDK creation', max_results: 5 },
         engine,
-      );
-      expect(result).toMatch(/Stats:/);
-      expect(result).toMatch(/Time:/);
+      ) as any;
+      expect(result).toHaveProperty('stats');
+      expect(result.stats).toHaveProperty('lexicalCandidates');
+      expect(result.stats).toHaveProperty('astFilesScanned');
     });
 
-    it('includes evidence in results', async () => {
+    it('includes evidence in candidates', async () => {
       const result = await findCodeByBehavior.handler(
         { query: 'validation checks', max_results: 5 },
         engine,
-      );
-      expect(result).toMatch(/Evidence:|score:/);
+      ) as any;
+      expect(result.candidates.length).toBeGreaterThan(0);
+      expect(result.candidates[0]).toHaveProperty('evidence');
+      expect(result.candidates[0]).toHaveProperty('score');
     });
   });
 

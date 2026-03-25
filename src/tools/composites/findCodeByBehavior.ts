@@ -84,54 +84,15 @@ export const findCodeByBehavior = defineTool({
       candidates: topResults,
     };
 
-    return formatResult(result, engine.workspaceRoot, Date.now() - startTime);
+    // Relativize file paths in candidates for output
+    for (const c of result.candidates) {
+      c.filePath = relativePath(c.filePath, engine.workspaceRoot);
+    }
+    (result as any).elapsedMs = Date.now() - startTime;
+    (result as any).warnings = [];
+
+    return result;
   },
 });
 
-function formatResult(result: FindCodeByBehaviorResult, workspaceRoot: string, elapsedMs: number): string {
-  const lines: string[] = [];
-
-  lines.push(`# find_code_by_behavior: "${result.query}"\n`);
-  lines.push(`**Confidence:** ${result.confidence}`);
-  lines.push(`**Query:** tokens=[${result.normalizedQuery.tokens.join(', ')}] families=[${result.normalizedQuery.behaviorFamilies.join(', ')}]`);
-  lines.push(`**Stats:** ${result.stats.lexicalCandidates} lexical, ${result.stats.astFilesScanned} files AST-scanned, ${result.stats.astMatches} AST matches, ${result.stats.enrichedCandidates} enriched`);
-  lines.push(`**Time:** ${elapsedMs}ms\n`);
-
-  if (result.candidates.length === 0) {
-    lines.push('No candidates found. Try broader terms or check that the codebase is indexed.');
-    if (result.confidence === 'low') {
-      lines.push('\n*This query may use terminology that doesn\'t match the codebase naming conventions.*');
-    }
-    return lines.join('\n');
-  }
-
-  lines.push(`## Top ${result.candidates.length} candidates\n`);
-
-  for (let i = 0; i < result.candidates.length; i++) {
-    const c = result.candidates[i];
-    const rel = relativePath(c.filePath, workspaceRoot);
-    const kindLabel = c.kind ? ` (${c.kind})` : '';
-    const symbolLabel = c.symbol ? `\`${c.symbol}\`` : '_file_';
-    const scoreLabel = `score: ${c.score}`;
-    const sourceLabel = c.sources.join('+');
-
-    lines.push(`### ${i + 1}. ${symbolLabel}${kindLabel} — ${rel}:${c.line}`);
-    lines.push(`${scoreLabel} | sources: ${sourceLabel}`);
-
-    if (c.signature) {
-      lines.push(`\n${c.signature.substring(0, 150)}`);
-    }
-
-    if (c.evidence.length > 0) {
-      const evidenceStr = c.evidence
-        .filter((e) => !e.startsWith('penalty'))
-        .slice(0, 5)
-        .join(', ');
-      if (evidenceStr) lines.push(`Evidence: ${evidenceStr}`);
-    }
-
-    lines.push('');
-  }
-
-  return lines.join('\n');
-}
+// formatResult removed — tool now returns structured JSON directly
