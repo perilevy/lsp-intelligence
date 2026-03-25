@@ -9,6 +9,17 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "A file was just edited. If the edited file is a TypeScript/JavaScript file (.ts, .tsx, .js, .jsx):\n1. Run `live_diagnostics` on it to check for new type errors\n2. If errors are found, run `explain_error` on each to provide fix suggestions\n3. If the file contains `export` statements, note that the exported API may have changed — consider running `api_guard` if the user is working on a cross-package change\n4. If no errors, say nothing — do not report clean files unless the user asked"
+          }
+        ]
+      }
     ]
   }
 }

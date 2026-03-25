@@ -2,7 +2,7 @@
 
 Type-aware code intelligence for AI agents — impact analysis, semantic diff, and context building via LSP.
 
-**24 MCP tools** across 5 layers — from basic navigation to "what breaks if I change this?" in one call.
+**28 MCP tools** across 5 layers — from basic navigation to "what breaks if I change this?" in one call.
 
 Currently supports **TypeScript and JavaScript** projects. The architecture supports other LSP servers — additional language support is planned.
 
@@ -142,15 +142,19 @@ Direct LSP wrappers. Every tool accepts **symbol names** — agents never need t
 | `file_imports` | List all imports of a file. |
 | `file_exports` | List a file's public API including re-exports. |
 
-### Layer 2: Composites (6 tools)
+### Layer 2: Intelligence Tools (10 tools)
 
-Combine multiple primitives into high-level operations.
+Combine LSP, AST, and Git substrates into high-level operations.
 
 | Tool | Description |
 |------|-------------|
+| `api_guard` | Detect public API contract changes — export diffs, structural classification, consumer impact, semver summary. |
+| `root_cause_trace` | Trace the root cause of a TypeScript error — find the originating declaration change, not just the symptom. |
+| `find_code_by_behavior` | Find implementation entrypoints by natural language behavior description. Hybrid keyword + AST + LSP search. |
+| `find_pattern` | AST structural search — find code by pattern (e.g. `useEffect($$$)`, `try { $$$ } catch ($E) { $$$ }`). |
 | `inspect_symbol` | Hover + definition + references in one call. Full context about any symbol. |
 | `batch_query` | Look up multiple symbols at once. Saves round-trips when exploring. |
-| `impact_trace` | Follow a symbol through type aliases and re-exports to find ALL transitive usages. Answers **"what breaks if I change X?"** in one call. |
+| `impact_trace` | Follow a symbol through type aliases and re-exports to find ALL transitive usages. |
 | `semantic_diff` | Analyze git diff semantically: identify changed symbols and their blast radius. |
 | `find_test_files` | Find all test/spec/stories files that reference a symbol. |
 | `explain_error` | Turn a TypeScript error into actionable context: expected type, actual type, and fix suggestion. |
@@ -184,9 +188,10 @@ Post-edit verification.
 │ Layer 3: Context Engine                 [read-only]      │
 │   gather_context, outline                               │
 ├─────────────────────────────────────────────────────────┤
-│ Layer 2: Composites                     [read-only]      │
-│   impact_trace, semantic_diff, inspect_symbol,          │
-│   batch_query, find_test_files, explain_error           │
+│ Layer 2: Intelligence Tools              [read-only]      │
+│   api_guard, root_cause_trace, find_code_by_behavior,   │
+│   find_pattern, impact_trace, semantic_diff,            │
+│   inspect_symbol, batch_query, find_test_files          │
 ├─────────────────────────────────────────────────────────┤
 │ Layer 1: Primitives                     [read-only]      │
 │   find_references, hover, definition, call_hierarchy,   │

@@ -49,6 +49,16 @@ You have access to LSP-powered code intelligence tools. Use them instead of grep
 - If errors: `explain_error` for actionable fix suggestions
 - `semantic_diff` before committing — verify your changes make sense
 
+## Automatic post-edit behavior
+
+After every Edit/Write on a TypeScript file, you will be prompted to:
+1. Run `live_diagnostics` on the edited file
+2. If errors found, run `explain_error` for fix suggestions
+3. If the file has exports and the user is doing cross-package work, consider `api_guard`
+4. If the file is clean, say nothing — silence means success
+
+This is automatic via the PostToolUse hook. You don't need to remember to check.
+
 ## Symbol-name input
 
 All tools accept symbol names directly: `{ "symbol": "UserService" }`. You don't need to figure out the file path and line number first. Use this whenever possible — it's faster and less error-prone than position-based queries.
