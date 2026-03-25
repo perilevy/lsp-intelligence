@@ -8,7 +8,7 @@ import type { LspEngine } from '../engine/LspEngine.js';
  * Structured objects are JSON-serialized for the MCP response.
  * Skills and formatting layers consume the structured data.
  */
-export type ToolResult = string | Record<string, unknown>;
+export type ToolResult = string | { [key: string]: any };
 
 export interface ToolDef {
   name: string;

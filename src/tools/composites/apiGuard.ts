@@ -1,13 +1,74 @@
 import { z } from 'zod';
-import { execSync } from 'child_process';
 import * as fs from 'fs';
+import * as path from 'path';
 import { defineTool } from '../registry.js';
-import { relativePath, uriToPath, pathToUri, getPackageName } from '../../engine/positions.js';
+import { relativePath, uriToPath, getPackageName } from '../../engine/positions.js';
 import { parseSource } from '../../ast/parseFile.js';
 import { extractExportDeclarations } from '../../ast/extractExportDeclarations.js';
-import { diffExportDeclarations, type DeclDiff, type ApiRiskLevel } from '../../ast/diffDeclarationShapes.js';
+import { diffExportDeclarations } from '../../ast/diffDeclarationShapes.js';
+import type { ApiRiskLevel, ApiChangeKind } from '../../ast/diffDeclarationShapes.js';
+import { getMergeBase } from '../../git/getMergeBase.js';
+import { getChangedFiles } from '../../git/getChangedFiles.js';
+import { getBaseFileContent } from '../../git/getBaseFileContent.js';
 import type { Location } from 'vscode-languageserver-protocol';
-import { LspError, LspErrorCode, DEFAULT_TIMEOUTS } from '../../engine/types.js';
+import { LspError, LspErrorCode, DEFAULT_TIMEOUTS, SKIP_DIRS } from '../../engine/types.js';
+
+// --- Structured output types ---
+
+interface ApiGuardEntry {
+  exportName: string;
+  filePath: string;
+  declarationKind?: string;
+  kind: ApiChangeKind;
+  risk: ApiRiskLevel;
+  reason: string;
+  currentSignature?: string;
+  baseSignature?: string;
+  structuralDiff?: string[];
+  consumers: { samePackage: number; crossPackage: number; sampleFiles: string[] };
+  diagnosticsInConsumers?: number;
+  evidence: string[];
+}
+
+interface ApiGuardResult {
+  summary: {
+    exportsChecked: number;
+    changedExports: number;
+    breaking: number;
+    risky: number;
+    safe: number;
+    recommendedSemver: 'major' | 'minor' | 'patch';
+  };
+  entries: ApiGuardEntry[];
+  stats: {
+    astUsed: boolean;
+    filesParsed: number;
+    baseUsed: boolean;
+    partialResult: boolean;
+  };
+  warnings: string[];
+}
+
+// --- Helper: collect all TS files under a dir ---
+
+function collectTsFiles(dir: string, max: number): string[] {
+  const files: string[] = [];
+  const walk = (d: string, depth: number) => {
+    if (depth > 6 || files.length >= max) return;
+    try {
+      for (const entry of fs.readdirSync(d)) {
+        if (SKIP_DIRS.has(entry)) continue;
+        const full = path.join(d, entry);
+        if (fs.statSync(full).isDirectory()) walk(full, depth + 1);
+        else if ((entry.endsWith('.ts') || entry.endsWith('.tsx')) && !entry.endsWith('.d.ts')) {
+          files.push(full);
+        }
+      }
+    } catch {}
+  };
+  walk(dir, 0);
+  return files;
+}
 
 export const apiGuard = defineTool({
   name: 'api_guard',
@@ -15,6 +76,8 @@ export const apiGuard = defineTool({
   schema: z.object({
     base: z.string().optional().describe('Git base ref. Defaults to merge-base with main.'),
     scope: z.enum(['changed', 'all']).default('changed').describe('"changed" = only diff-modified files, "all" = scan all source files'),
+    symbol: z.string().optional().describe('Optional: narrow to a specific export name'),
+    file_path: z.string().optional().describe('Optional: narrow to a specific file'),
   }),
   async handler(params, engine) {
     if (!engine.gitAvailable && params.scope === 'changed') {
@@ -22,92 +85,87 @@ export const apiGuard = defineTool({
     }
 
     const timeout = DEFAULT_TIMEOUTS.composite;
+    const warnings: string[] = [];
     let astUsed = false;
 
-    // Step 0: Determine base ref
-    let base = params.base;
-    if (!base && engine.gitAvailable) {
-      try {
-        base = execSync('git merge-base HEAD main', { cwd: engine.workspaceRoot, encoding: 'utf-8' }).trim();
-      } catch {
-        try {
-          base = execSync('git merge-base HEAD master', { cwd: engine.workspaceRoot, encoding: 'utf-8' }).trim();
-        } catch {
-          base = 'HEAD~1';
-        }
-      }
-    }
+    // Step 0: Resolve base ref
+    const base = engine.gitAvailable ? getMergeBase(engine.workspaceRoot, params.base) : undefined;
 
     // Step 1: Get files in scope
     let scopeFiles: string[];
-    if (params.scope === 'changed' && base) {
-      const diff = execSync(`git diff ${base} --name-only`, { cwd: engine.workspaceRoot, encoding: 'utf-8' });
-      scopeFiles = diff.trim().split('\n')
-        .filter((f) => f.match(/\.tsx?$/) && !f.endsWith('.d.ts'))
-        .map((f) => `${engine.workspaceRoot}/${f}`)
-        .filter((f) => fs.existsSync(f));
+    if (params.file_path) {
+      scopeFiles = [params.file_path];
+    } else if (params.scope === 'changed' && base) {
+      scopeFiles = getChangedFiles(engine.workspaceRoot, base);
     } else {
-      // Scan all source files (limited to packages)
-      scopeFiles = [];
-      const { execSync: exec } = require('child_process');
+      scopeFiles = collectTsFiles(engine.workspaceRoot, 500);
+    }
+
+    if (scopeFiles.length === 0) {
+      return { summary: { exportsChecked: 0, changedExports: 0, breaking: 0, risky: 0, safe: 0, recommendedSemver: 'patch' as const }, entries: [], stats: { astUsed: false, filesParsed: 0, baseUsed: !!base, partialResult: false }, warnings: ['No files in scope'] } satisfies ApiGuardResult;
+    }
+
+    // Step 2+3: Parse exports, diff
+    const entries: ApiGuardEntry[] = [];
+    let filesParsed = 0;
+    let totalExportsChecked = 0;
+
+    for (const filePath of scopeFiles) {
       try {
-        const files = exec('find packages -name "*.ts" -o -name "*.tsx" | grep -v node_modules | grep -v dist | grep -v ".d.ts" | head -500', {
-          cwd: engine.workspaceRoot, encoding: 'utf-8',
-        });
-        scopeFiles = files.trim().split('\n').filter(Boolean).map((f: string) => `${engine.workspaceRoot}/${f}`);
+        const currentContent = fs.readFileSync(filePath, 'utf-8');
+        const currentRoot = parseSource(currentContent, filePath.endsWith('.tsx'));
+        const currentExports = currentRoot
+          ? (astUsed = true, extractExportDeclarations(currentRoot, currentContent))
+          : extractExportDeclarations(null, currentContent);
+
+        totalExportsChecked += currentExports.length;
+
+        // Get base exports
+        let baseExports = extractExportDeclarations(null, '');
+        if (base) {
+          const baseContent = getBaseFileContent(filePath, base, engine.workspaceRoot);
+          if (baseContent) {
+            const baseRoot = parseSource(baseContent, filePath.endsWith('.tsx'));
+            baseExports = baseRoot
+              ? extractExportDeclarations(baseRoot, baseContent)
+              : extractExportDeclarations(null, baseContent);
+          }
+        }
+
+        const diffs = diffExportDeclarations(baseExports, currentExports);
+        for (const d of diffs) {
+          if (params.symbol && d.name !== params.symbol) continue;
+
+          entries.push({
+            exportName: d.name,
+            filePath,
+            declarationKind: d.baseDecl?.declarationKind ?? d.currentDecl?.declarationKind,
+            kind: d.kind,
+            risk: d.risk,
+            reason: d.reason,
+            currentSignature: d.currentDecl?.signatureText,
+            baseSignature: d.baseDecl?.signatureText,
+            structuralDiff: d.structuralDiff,
+            consumers: { samePackage: 0, crossPackage: 0, sampleFiles: [] },
+            evidence: [],
+          });
+        }
+        filesParsed++;
       } catch {}
     }
 
-    if (scopeFiles.length === 0) return 'No files in scope. Nothing to check.';
-
-    // Step 2+3: Parse current + base exports, diff
-    const allDiffs: Array<DeclDiff & { filePath: string; consumers?: { samePackage: number; crossPackage: number; sampleFiles: string[] } }> = [];
-    let filesParsed = 0;
-
-    for (const filePath of scopeFiles) {
-      const currentContent = fs.readFileSync(filePath, 'utf-8');
-      const currentRoot = parseSource(currentContent, filePath.endsWith('.tsx'));
-
-      let currentExports = currentRoot
-        ? (astUsed = true, extractExportDeclarations(currentRoot, currentContent))
-        : extractExportsFallback(currentContent);
-
-      // Get base version of the file
-      let baseExports: ReturnType<typeof extractExportDeclarations> = [];
-      if (base) {
-        const relPath = relativePath(filePath, engine.workspaceRoot);
-        try {
-          const baseContent = execSync(`git show ${base}:${relPath}`, { cwd: engine.workspaceRoot, encoding: 'utf-8' });
-          const baseRoot = parseSource(baseContent, filePath.endsWith('.tsx'));
-          baseExports = baseRoot
-            ? extractExportDeclarations(baseRoot, baseContent)
-            : extractExportsFallback(baseContent);
-        } catch {
-          // File didn't exist in base — all exports are new
-        }
-      }
-
-      const diffs = diffExportDeclarations(baseExports, currentExports);
-      for (const d of diffs) {
-        allDiffs.push({ ...d, filePath });
-      }
-      filesParsed++;
-    }
-
-    if (allDiffs.length === 0) return 'No export changes detected. API surface is unchanged.';
-
-    // Step 4: Find consumers for changed/risky/breaking exports
-    for (const diff of allDiffs.filter((d) => d.risk !== 'safe')) {
+    // Step 4: Find consumers for non-safe entries (cap at 3 consumer-diagnostic checks)
+    let consumerChecks = 0;
+    for (const entry of entries.filter((e) => e.risk !== 'safe')) {
+      if (consumerChecks >= 15) { warnings.push('Consumer lookup capped at 15 entries'); break; }
       try {
-        const { uri } = await engine.prepareFile(diff.filePath);
-        // Find the export's position by searching for it in the file
-        const content = fs.readFileSync(diff.filePath, 'utf-8');
+        const { uri } = await engine.prepareFile(entry.filePath);
+        const content = fs.readFileSync(entry.filePath, 'utf-8');
         const lines = content.split('\n');
         let exportLine = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].includes(diff.name) && lines[i].includes('export')) {
-            exportLine = i;
-            break;
+          if (lines[i].includes(entry.exportName) && lines[i].includes('export')) {
+            exportLine = i; break;
           }
         }
 
@@ -115,97 +173,61 @@ export const apiGuard = defineTool({
           const refs = await engine.request<Location[] | null>(
             'textDocument/references', {
               textDocument: { uri },
-              position: { line: exportLine, character: lines[exportLine].indexOf(diff.name) },
+              position: { line: exportLine, character: Math.max(0, lines[exportLine].indexOf(entry.exportName)) },
               context: { includeDeclaration: false },
             }, timeout,
           ).catch(() => null);
 
           if (refs) {
-            const currentPkg = getPackageName(diff.filePath);
+            const currentPkg = getPackageName(entry.filePath);
             const samePackage = refs.filter((r) => getPackageName(uriToPath(r.uri)) === currentPkg).length;
             const crossPackage = refs.length - samePackage;
-            const sampleFiles = [...new Set(refs.map((r) => relativePath(uriToPath(r.uri), engine.workspaceRoot)))].slice(0, 5);
-            diff.consumers = { samePackage, crossPackage, sampleFiles };
+            entry.consumers = {
+              samePackage,
+              crossPackage,
+              sampleFiles: [...new Set(refs.map((r) => relativePath(uriToPath(r.uri), engine.workspaceRoot)))].slice(0, 5),
+            };
+            entry.evidence.push(`${crossPackage} cross-package, ${samePackage} same-package consumers`);
 
-            // Upgrade risk if cross-package consumers exist
-            if (crossPackage > 0 && diff.risk === 'risky') {
-              // Keep risky — cross-package consumers confirm it matters
-            }
-            if (crossPackage === 0 && diff.risk === 'risky') {
-              diff.risk = 'safe'; // No cross-package consumers → less risky
-              diff.reason += ' (no cross-package consumers)';
+            // Downgrade risk if no cross-package consumers
+            if (crossPackage === 0 && entry.risk === 'risky') {
+              entry.risk = 'safe';
+              entry.reason += ' (no cross-package consumers)';
             }
           }
         }
+        consumerChecks++;
       } catch {}
     }
 
-    // Step 5+6: Classify and summarize
-    const breaking = allDiffs.filter((d) => d.risk === 'breaking');
-    const risky = allDiffs.filter((d) => d.risk === 'risky');
-    const safe = allDiffs.filter((d) => d.risk === 'safe');
-    const semver = breaking.length > 0 ? 'major' : risky.length > 0 ? 'minor' : 'patch';
+    // Step 5: Classify and summarize
+    const breaking = entries.filter((e) => e.risk === 'breaking').length;
+    const risky = entries.filter((e) => e.risk === 'risky').length;
+    const safe = entries.filter((e) => e.risk === 'safe').length;
+    const semver: 'major' | 'minor' | 'patch' = breaking > 0 ? 'major' : risky > 0 ? 'minor' : 'patch';
 
-    // Step 7: Format output
-    const lines: string[] = [`# API Guard Report\n`];
-    lines.push(`**Semver: ${semver.toUpperCase()}** | ${allDiffs.length} export changes (${breaking.length} breaking, ${risky.length} risky, ${safe.length} safe)`);
-    lines.push(`AST used: ${astUsed} | Files parsed: ${filesParsed}\n`);
+    const result: ApiGuardResult = {
+      summary: {
+        exportsChecked: totalExportsChecked,
+        changedExports: entries.length,
+        breaking,
+        risky,
+        safe,
+        recommendedSemver: semver,
+      },
+      entries: entries.sort((a, b) => {
+        const riskOrder = { breaking: 0, risky: 1, safe: 2 };
+        return riskOrder[a.risk] - riskOrder[b.risk];
+      }),
+      stats: {
+        astUsed,
+        filesParsed,
+        baseUsed: !!base,
+        partialResult: consumerChecks >= 15,
+      },
+      warnings,
+    };
 
-    if (breaking.length > 0) {
-      lines.push(`## Breaking Changes (${breaking.length})\n`);
-      for (const d of breaking) {
-        formatEntry(d, engine.workspaceRoot, lines);
-      }
-    }
-
-    if (risky.length > 0) {
-      lines.push(`## Risky Changes (${risky.length})\n`);
-      for (const d of risky) {
-        formatEntry(d, engine.workspaceRoot, lines);
-      }
-    }
-
-    if (safe.length > 0) {
-      lines.push(`## Safe Changes (${safe.length})\n`);
-      for (const d of safe) {
-        const rel = relativePath(d.filePath, engine.workspaceRoot);
-        lines.push(`🟢 **${d.name}** (${d.kind}) — ${rel}`);
-        lines.push(`   ${d.reason}\n`);
-      }
-    }
-
-    return lines.join('\n');
+    return result;
   },
 });
-
-function formatEntry(
-  d: DeclDiff & { filePath: string; consumers?: { samePackage: number; crossPackage: number; sampleFiles: string[] } },
-  workspaceRoot: string,
-  lines: string[],
-): void {
-  const rel = relativePath(d.filePath, workspaceRoot);
-  const icon = d.risk === 'breaking' ? '🔴' : '🟡';
-  lines.push(`${icon} **${d.name}** (${d.kind}) — ${rel}`);
-  lines.push(`   ${d.reason}`);
-
-  if (d.structuralDiff.length > 0) {
-    for (const sd of d.structuralDiff.slice(0, 5)) {
-      lines.push(`   \`${sd}\``);
-    }
-  }
-
-  if (d.consumers) {
-    lines.push(`   Consumers: ${d.consumers.crossPackage} cross-package, ${d.consumers.samePackage} same-package`);
-    if (d.consumers.sampleFiles.length > 0) {
-      lines.push(`   Sample: ${d.consumers.sampleFiles.slice(0, 3).join(', ')}`);
-    }
-  }
-  lines.push('');
-}
-
-/**
- * Fallback export extraction without AST — regex only.
- */
-function extractExportsFallback(content: string) {
-  return extractExportDeclarations(null as any, content);
-}

@@ -1,13 +1,19 @@
 import { z } from 'zod';
-import { execSync } from 'child_process';
 import * as fs from 'fs';
 import { defineTool } from '../registry.js';
 import { relativePath, uriToPath, pathToUri, fromPosition } from '../../engine/positions.js';
 import { formatHover } from '../../format/markdown.js';
-import { parseFile } from '../../ast/parseFile.js';
+import { parseFile, parseSource } from '../../ast/parseFile.js';
 import { classifyErrorSite } from '../../ast/findNodeAtPosition.js';
-import type { Location, Hover, Diagnostic, DocumentSymbol, CallHierarchyItem, CallHierarchyIncomingCall } from 'vscode-languageserver-protocol';
+import { extractExportDeclarations } from '../../ast/extractExportDeclarations.js';
+import { diffExportDeclarations } from '../../ast/diffDeclarationShapes.js';
+import { getMergeBase } from '../../git/getMergeBase.js';
+import { getBaseFileContent } from '../../git/getBaseFileContent.js';
+import { fileChangedInBranch } from '../../git/getChangedHunks.js';
+import type { Location, Hover, Diagnostic, CallHierarchyItem, CallHierarchyIncomingCall } from 'vscode-languageserver-protocol';
 import { DEFAULT_TIMEOUTS } from '../../engine/types.js';
+
+// --- Structured output types ---
 
 interface RootCauseCandidate {
   symbol?: string;
@@ -20,190 +26,188 @@ interface RootCauseCandidate {
   evidence: string[];
   changedInBranch: boolean;
   structuralChange?: string;
-  impactSummary?: { affectedFiles: number };
+  diagnosticsNearby?: number;
+  impactSummary?: { affectedFiles: number; affectedSymbols?: number };
+  suggestedFix?: string;
+}
+
+interface RootCauseTraceResult {
+  diagnostic?: { code?: string; message: string; filePath: string; line: number };
+  errorSite: {
+    symbol?: string;
+    definitionFile?: string;
+    enclosingNodeKind?: string;
+    localPattern?: string;
+  };
+  candidates: RootCauseCandidate[];
+  topCandidate?: RootCauseCandidate;
+  nextVerificationStep?: string;
+  stats: {
+    candidatesConsidered: number;
+    callerFilesChecked: number;
+    astUsed: boolean;
+    baseUsed: boolean;
+    partialResult: boolean;
+  };
+  warnings: string[];
 }
 
 export const rootCauseTrace = defineTool({
   name: 'root_cause_trace',
-  description: 'Trace the root cause of a TypeScript error. Given a diagnostic location, identifies the most likely originating declaration change with an evidence chain. Use when fixing the symptom isn\'t enough — find what actually broke.',
+  description: 'Trace the root cause of a TypeScript error. Given a diagnostic location, identifies the most likely originating declaration change with an evidence chain. Best for type/interface/export/signature regressions.',
   schema: z.object({
-    file_path: z.string().describe('File with the error'),
+    symbol: z.string().optional().describe('Symbol at the error site'),
+    file_path: z.string().optional().describe('File with the error'),
     line: z.number().optional().describe('Error line (1-indexed). If omitted, uses first diagnostic.'),
+    diagnostic_code: z.string().optional().describe('TS error code, e.g. "TS2345"'),
     base: z.string().optional().describe('Git base ref to check recent changes'),
   }),
   async handler(params, engine) {
     const timeout = DEFAULT_TIMEOUTS.composite;
+    const warnings: string[] = [];
     let astUsed = false;
 
-    // Step 0: Resolve the target diagnostic
-    const { uri } = await engine.prepareFile(params.file_path);
-    await new Promise((r) => setTimeout(r, 500)); // Wait for diagnostics
+    // Step 0: Resolve target
+    if (!params.file_path && !params.symbol) {
+      return { errorSite: {}, candidates: [], stats: { candidatesConsidered: 0, callerFilesChecked: 0, astUsed: false, baseUsed: false, partialResult: false }, warnings: ['Provide at least file_path or symbol'] } satisfies RootCauseTraceResult;
+    }
+
+    const filePath = params.file_path!;
+    const { uri } = await engine.prepareFile(filePath);
+    await new Promise((r) => setTimeout(r, 500));
     const allDiags = engine.docManager.getCachedDiagnostics(uri);
     const errors = allDiags.filter((d) => d.severity === 1);
 
+    // Find target diagnostic
     let targetDiag: Diagnostic | undefined;
-    if (params.line) {
+    if (params.diagnostic_code) {
+      targetDiag = errors.find((d) => `TS${d.code}` === params.diagnostic_code || String(d.code) === params.diagnostic_code);
+    }
+    if (!targetDiag && params.line) {
       const targetLine = params.line - 1;
       targetDiag = errors.find((d) => d.range.start.line === targetLine)
         ?? errors.find((d) => Math.abs(d.range.start.line - targetLine) <= 2);
-    } else {
-      targetDiag = errors[0];
     }
+    if (!targetDiag) targetDiag = errors[0];
 
     if (!targetDiag) {
-      const rel = relativePath(params.file_path, engine.workspaceRoot);
-      return `No error diagnostic found in ${rel}${params.line ? ` near line ${params.line}` : ''}. File may be clean.`;
+      return { errorSite: {}, candidates: [], stats: { candidatesConsidered: 0, callerFilesChecked: 0, astUsed: false, baseUsed: false, partialResult: false }, warnings: [`No error diagnostic in ${relativePath(filePath, engine.workspaceRoot)}`] } satisfies RootCauseTraceResult;
     }
 
-    const diagPos = fromPosition(targetDiag.range.start);
-    const diagCode = targetDiag.code ? `TS${targetDiag.code}` : '';
-    const rel = relativePath(params.file_path, engine.workspaceRoot);
-
-    // Step 1: Resolve error site with LSP + AST
+    const base = engine.gitAvailable ? getMergeBase(engine.workspaceRoot, params.base) : undefined;
     const errorPosition = targetDiag.range.start;
+    const diagPos = fromPosition(errorPosition);
 
-    // LSP: hover + definition
+    // Step 1: Resolve error site — LSP + AST
     const [hoverResult, defResult] = await Promise.all([
       engine.request<Hover | null>('textDocument/hover', { textDocument: { uri }, position: errorPosition }, timeout).catch(() => null),
       engine.request<Location | Location[] | null>('textDocument/definition', { textDocument: { uri }, position: errorPosition }, timeout).catch(() => null),
     ]);
 
-    // AST: classify error site
     let localPattern: string | null = null;
-    const root = parseFile(params.file_path);
-    if (root) {
-      astUsed = true;
-      localPattern = classifyErrorSite(root, errorPosition.line);
-    }
+    const root = parseFile(filePath);
+    if (root) { astUsed = true; localPattern = classifyErrorSite(root, errorPosition.line); }
 
     const errorSiteSymbol = hoverResult ? formatHover(hoverResult).substring(0, 100) : undefined;
-    const defLocation = defResult
-      ? uriToPath(Array.isArray(defResult) ? defResult[0].uri : defResult.uri)
-      : undefined;
+    const defLocation = defResult ? uriToPath(Array.isArray(defResult) ? defResult[0].uri : defResult.uri) : undefined;
 
-    // Step 2: Collect candidate origins
+    const errorSite = {
+      symbol: errorSiteSymbol,
+      definitionFile: defLocation ? relativePath(defLocation, engine.workspaceRoot) : undefined,
+      enclosingNodeKind: localPattern ?? undefined,
+      localPattern: localPattern ?? undefined,
+    };
+
+    // Step 2: Collect candidates
     const candidates: RootCauseCandidate[] = [];
 
-    // Candidate A: definition/type-definition
-    if (defLocation && defLocation !== params.file_path) {
-      const defRel = relativePath(defLocation, engine.workspaceRoot);
-      const changedInBranch = await fileChangedInBranch(defLocation, params.base, engine);
+    // Candidate A: definition site
+    if (defLocation && defLocation !== filePath) {
+      const changed = base ? fileChangedInBranch(defLocation, base, engine.workspaceRoot) : false;
       let score = 5;
-      const evidence: string[] = [`definition-site: ${defRel}`];
-
-      if (changedInBranch) {
+      const evidence: string[] = [`definition-site: ${relativePath(defLocation, engine.workspaceRoot)}`];
+      if (changed) {
         score += 8;
         evidence.push('changed-in-branch');
-
-        // AST: classify what changed
-        if (params.base && engine.gitAvailable) {
-          const structChange = await classifyDeclarationChange(defLocation, params.base, engine);
-          if (structChange) {
-            score += 5;
-            evidence.push(`structural-change: ${structChange}`);
-          }
+        if (base) {
+          const structChange = classifyDeclarationChange(defLocation, base, engine.workspaceRoot);
+          if (structChange) { score += 5; evidence.push(`structural-change: ${structChange}`); }
         }
       }
-
       candidates.push({
-        symbol: defRel.split('/').pop()?.replace(/\.tsx?$/, ''),
         filePath: defLocation,
-        reason: changedInBranch
-          ? `Definition file changed in this branch`
-          : `Definition site — trace upstream for root cause`,
-        confidence: changedInBranch ? 'high' : 'medium',
-        score,
-        evidence,
-        changedInBranch,
+        reason: changed ? 'Definition file changed in this branch' : 'Definition site — trace upstream',
+        confidence: changed ? 'high' : 'medium',
+        score, evidence, changedInBranch: changed,
       });
     }
 
-    // Candidate B: type definition (for type mismatches)
+    // Candidate B: type definition
     const typeDef = await engine.request<Location | Location[] | null>(
       'textDocument/typeDefinition', { textDocument: { uri }, position: errorPosition }, timeout,
     ).catch(() => null);
-
     if (typeDef) {
       const typeDefPath = uriToPath(Array.isArray(typeDef) ? typeDef[0].uri : typeDef.uri);
-      if (typeDefPath !== params.file_path && typeDefPath !== defLocation) {
-        const changedInBranch = await fileChangedInBranch(typeDefPath, params.base, engine);
-        const typeRel = relativePath(typeDefPath, engine.workspaceRoot);
+      if (typeDefPath !== filePath && typeDefPath !== defLocation) {
+        const changed = base ? fileChangedInBranch(typeDefPath, base, engine.workspaceRoot) : false;
         let score = 4;
-        const evidence: string[] = [`type-definition: ${typeRel}`];
-
-        if (changedInBranch) {
-          score += 8;
-          evidence.push('changed-in-branch');
-
-          const structChange = params.base ? await classifyDeclarationChange(typeDefPath, params.base, engine) : null;
-          if (structChange) {
-            score += 5;
-            evidence.push(`structural-change: ${structChange}`);
+        const evidence: string[] = [`type-definition: ${relativePath(typeDefPath, engine.workspaceRoot)}`];
+        if (changed) {
+          score += 8; evidence.push('changed-in-branch');
+          if (base) {
+            const structChange = classifyDeclarationChange(typeDefPath, base, engine.workspaceRoot);
+            if (structChange) { score += 5; evidence.push(`structural-change: ${structChange}`); }
           }
         }
-
         candidates.push({
           filePath: typeDefPath,
-          reason: changedInBranch
-            ? `Type definition changed in this branch`
-            : `Type definition site`,
-          confidence: changedInBranch ? 'high' : 'low',
-          score,
-          evidence,
-          changedInBranch,
+          reason: changed ? 'Type definition changed in this branch' : 'Type definition site',
+          confidence: changed ? 'high' : 'low',
+          score, evidence, changedInBranch: changed,
         });
       }
     }
 
-    // Candidate C: upstream callers (check for propagated errors)
+    // Candidate C: upstream callers (cap at 5)
+    let callerFilesChecked = 0;
     try {
       const items = await engine.request<CallHierarchyItem[] | null>(
         'textDocument/prepareCallHierarchy', { textDocument: { uri }, position: errorPosition }, timeout,
       );
-      if (items && items.length > 0) {
+      if (items?.length) {
         const incomingCalls = await engine.request<CallHierarchyIncomingCall[] | null>(
           'callHierarchy/incomingCalls', { item: items[0] }, timeout,
         );
-        if (incomingCalls) {
-          for (const call of incomingCalls.slice(0, 5)) {
-            const callerPath = uriToPath(call.from.uri);
-            if (callerPath === params.file_path) continue;
-            const changedInBranch = await fileChangedInBranch(callerPath, params.base, engine);
-            const callerRel = relativePath(callerPath, engine.workspaceRoot);
+        for (const call of (incomingCalls ?? []).slice(0, 5)) {
+          const callerPath = uriToPath(call.from.uri);
+          if (callerPath === filePath) continue;
+          const changed = base ? fileChangedInBranch(callerPath, base, engine.workspaceRoot) : false;
 
-            // Check if caller has diagnostics too
-            await engine.prepareFile(callerPath);
-            await new Promise((r) => setTimeout(r, 200));
-            const callerDiags = engine.docManager.getCachedDiagnostics(pathToUri(callerPath));
-            const callerErrors = callerDiags.filter((d) => d.severity === 1).length;
+          await engine.prepareFile(callerPath);
+          await new Promise((r) => setTimeout(r, 200));
+          const callerDiags = engine.docManager.getCachedDiagnostics(pathToUri(callerPath)).filter((d) => d.severity === 1).length;
 
-            let score = 2;
-            const evidence: string[] = [`upstream-caller: ${callerRel}`];
-            if (changedInBranch) { score += 6; evidence.push('changed-in-branch'); }
-            if (callerErrors > 0) { score += 3; evidence.push(`caller-has-errors: ${callerErrors}`); }
+          let score = 2;
+          const evidence: string[] = [`upstream-caller: ${relativePath(callerPath, engine.workspaceRoot)}`];
+          if (changed) { score += 6; evidence.push('changed-in-branch'); }
+          if (callerDiags > 0) { score += 3; evidence.push(`caller-has-errors: ${callerDiags}`); }
 
-            candidates.push({
-              symbol: call.from.name,
-              filePath: callerPath,
-              reason: changedInBranch
-                ? `Upstream caller changed in this branch${callerErrors ? ` (${callerErrors} errors)` : ''}`
-                : `Upstream caller${callerErrors ? ` with ${callerErrors} errors` : ''}`,
-              confidence: changedInBranch && callerErrors > 0 ? 'high' : 'low',
-              score,
-              evidence,
-              changedInBranch,
-            });
-          }
+          candidates.push({
+            symbol: call.from.name, filePath: callerPath,
+            reason: changed ? `Upstream caller changed${callerDiags ? ` (${callerDiags} errors)` : ''}` : `Upstream caller${callerDiags ? ` with ${callerDiags} errors` : ''}`,
+            confidence: changed && callerDiags > 0 ? 'high' : 'low',
+            score, evidence, changedInBranch: changed, diagnosticsNearby: callerDiags,
+          });
+          callerFilesChecked++;
         }
       }
     } catch {}
 
-    // Step 3: Impact check on top candidate
+    // Step 3: Impact + fix hints
     const sorted = candidates.sort((a, b) => b.score - a.score);
     const topCandidate = sorted[0];
 
     if (topCandidate) {
-      // Get reference count for impact
       try {
         const { uri: topUri } = await engine.prepareFile(topCandidate.filePath);
         const refs = await engine.request<Location[] | null>(
@@ -213,110 +217,37 @@ export const rootCauseTrace = defineTool({
             context: { includeDeclaration: false },
           }, timeout,
         ).catch(() => null);
-        if (refs) {
-          topCandidate.impactSummary = {
-            affectedFiles: new Set(refs.map((r) => uriToPath(r.uri))).size,
-          };
-        }
+        if (refs) topCandidate.impactSummary = { affectedFiles: new Set(refs.map((r) => uriToPath(r.uri))).size };
       } catch {}
+
+      if (localPattern === 'unhandled_enum_member') topCandidate.suggestedFix = 'Add a case for the new enum member';
+      else if (localPattern === 'bad_call_argument') topCandidate.suggestedFix = 'Check function signature — a parameter type may have changed';
+      else if (localPattern === 'missing_property_access') topCandidate.suggestedFix = 'A property may have been removed or renamed';
+      else if (localPattern === 'incompatible_assignment') topCandidate.suggestedFix = 'Source type may have changed — check the definition';
     }
 
-    // Step 4: AST-enhanced fix hints
-    let suggestedFix: string | undefined;
-    if (localPattern) {
-      if (localPattern === 'unhandled_enum_member' && topCandidate?.evidence.some((e) => e.includes('enum'))) {
-        suggestedFix = 'Add a case for the new enum member in the switch statement';
-      } else if (localPattern === 'bad_call_argument') {
-        suggestedFix = 'Check the function signature — a parameter type may have changed';
-      } else if (localPattern === 'missing_property_access') {
-        suggestedFix = 'A property may have been removed or renamed in the source type';
-      } else if (localPattern === 'incompatible_assignment') {
-        suggestedFix = 'The source type may have changed — check the definition';
-      }
-    }
-
-    // Step 5: Format output
-    const lines: string[] = [`# Root Cause Analysis\n`];
-    lines.push(`## Error`);
-    lines.push(`${diagCode} at ${rel}:${diagPos.line} — ${targetDiag.message}\n`);
-
-    if (localPattern) {
-      lines.push(`**Error pattern:** ${localPattern}`);
-    }
-    if (errorSiteSymbol) {
-      lines.push(`**Type at error:** ${errorSiteSymbol.substring(0, 100)}`);
-    }
-    lines.push('');
-
-    if (topCandidate) {
-      const topRel = relativePath(topCandidate.filePath, engine.workspaceRoot);
-      lines.push(`## Root Cause (${topCandidate.confidence} confidence)\n`);
-      lines.push(`${topCandidate.reason}`);
-      lines.push(`File: ${topRel}${topCandidate.line ? `:${topCandidate.line}` : ''}`);
-
-      if (topCandidate.evidence.length > 0) {
-        lines.push(`\n**Evidence:** ${topCandidate.evidence.join(' → ')}`);
-      }
-      if (topCandidate.impactSummary) {
-        lines.push(`**Impact:** ${topCandidate.impactSummary.affectedFiles} files reference this symbol`);
-      }
-      if (suggestedFix) {
-        lines.push(`\n**Suggested fix:** ${suggestedFix}`);
-      }
-    } else {
-      lines.push(`## No clear root cause found\n`);
-      lines.push(`The error may be a local issue. Check the type at the error site.`);
-    }
-
-    if (sorted.length > 1) {
-      lines.push(`\n## Other candidates\n`);
-      for (const c of sorted.slice(1, 4)) {
-        const cRel = relativePath(c.filePath, engine.workspaceRoot);
-        lines.push(`- **${c.reason}** — ${cRel} (score: ${c.score}, ${c.confidence})`);
-      }
-    }
-
-    lines.push(`\n**Stats:** ${candidates.length} candidates, ${sorted.filter((c) => c.changedInBranch).length} changed in branch, AST: ${astUsed}`);
-
-    return lines.join('\n');
+    return {
+      diagnostic: { code: targetDiag.code ? `TS${targetDiag.code}` : undefined, message: targetDiag.message, filePath, line: diagPos.line },
+      errorSite,
+      candidates: sorted,
+      topCandidate,
+      nextVerificationStep: topCandidate ? `Run impact_trace on ${relativePath(topCandidate.filePath, engine.workspaceRoot)}` : undefined,
+      stats: { candidatesConsidered: candidates.length, callerFilesChecked, astUsed, baseUsed: !!base, partialResult: callerFilesChecked >= 5 },
+      warnings,
+    } satisfies RootCauseTraceResult;
   },
 });
 
-async function fileChangedInBranch(filePath: string, base: string | undefined, engine: any): Promise<boolean> {
-  if (!base || !engine.gitAvailable) return false;
+function classifyDeclarationChange(filePath: string, base: string, workspaceRoot: string): string | null {
   try {
-    const relPath = relativePath(filePath, engine.workspaceRoot);
-    const diff = execSync(`git diff ${base} --name-only -- "${relPath}"`, {
-      cwd: engine.workspaceRoot, encoding: 'utf-8',
-    });
-    return diff.trim().length > 0;
-  } catch {
-    return false;
-  }
-}
-
-async function classifyDeclarationChange(filePath: string, base: string, engine: any): Promise<string | null> {
-  try {
-    const relPath = relativePath(filePath, engine.workspaceRoot) ?? '';
-    if (!relPath) return null;
-    const baseContent = execSync(`git show ${base}:${relPath}`, { cwd: engine.workspaceRoot, encoding: 'utf-8' });
+    const baseContent = getBaseFileContent(filePath, base, workspaceRoot);
+    if (!baseContent) return null;
     const currentContent = fs.readFileSync(filePath, 'utf-8');
-
-    const { extractExportDeclarations } = await import('../../ast/extractExportDeclarations.js');
-    const { parseSource } = await import('../../ast/parseFile.js');
-
     const baseRoot = parseSource(baseContent, filePath.endsWith('.tsx'));
     const currentRoot = parseSource(currentContent, filePath.endsWith('.tsx'));
-
-    const baseExports = baseRoot ? extractExportDeclarations(baseRoot, baseContent) : [];
-    const currentExports = currentRoot ? extractExportDeclarations(currentRoot, currentContent) : [];
-
-    const { diffExportDeclarations } = await import('../../ast/diffDeclarationShapes.js');
+    const baseExports = extractExportDeclarations(baseRoot, baseContent);
+    const currentExports = extractExportDeclarations(currentRoot, currentContent);
     const diffs = diffExportDeclarations(baseExports, currentExports);
-
-    if (diffs.length > 0) {
-      return diffs.map((d) => `${d.kind}: ${d.name}`).join(', ');
-    }
-  } catch {}
-  return null;
+    return diffs.length > 0 ? diffs.map((d) => `${d.kind}: ${d.name}`).join(', ') : null;
+  } catch { return null; }
 }
