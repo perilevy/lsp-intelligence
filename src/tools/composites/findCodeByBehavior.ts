@@ -20,13 +20,26 @@ export const findCodeByBehavior = defineTool({
     'Find likely implementation entrypoints for a behavior described in natural language. Combines keyword search, AST structural patterns, and LSP enrichment. Good for: auth, validation, fetching, error handling, state management, feature flags.',
   schema: z.object({
     query: z.string().describe('Natural language description, e.g. "permission checks" or "JWT validation"'),
+    paths: z.array(z.string()).optional().describe('Optional directories to narrow search'),
     max_results: z.number().default(10).describe('Maximum results to return'),
+    intent_family: z.enum(['auth', 'validation', 'fetching', 'errors', 'state', 'flags', 'retry', 'caching']).optional().describe('Force a specific behavior family'),
   }),
   async handler(params, engine) {
     const startTime = Date.now();
 
-    // Step 1: Normalize query
+    // Step 1: Normalize query (with optional intent_family override)
     const normalized = normalizeQuery(params.query);
+    if (params.intent_family) {
+      const familyMap: Record<string, string> = {
+        auth: 'auth_permission', validation: 'validation', fetching: 'fetching',
+        errors: 'error_handling', state: 'state_management', flags: 'feature_flags',
+        retry: 'retry_backoff', caching: 'caching',
+      };
+      const familyId = familyMap[params.intent_family];
+      if (familyId && !normalized.behaviorFamilies.includes(familyId)) {
+        normalized.behaviorFamilies.push(familyId);
+      }
+    }
 
     // Step 2: Build or reuse lexical index
     if (
@@ -40,11 +53,12 @@ export const findCodeByBehavior = defineTool({
     // Step 3: Lexical recall
     const lexicalCandidates = lexicalRecall(cachedIndex.entries, normalized, 100);
 
-    // Step 4: AST shortlist + search
+    // Step 4: AST shortlist + search (respect paths narrowing)
+    const searchRoot = params.paths?.[0] ?? engine.workspaceRoot;
     const AST_FILE_CAP = normalized.behaviorFamilies.length > 1 ? 80 : 30;
-    const shortlist = buildAstShortlist(engine.workspaceRoot, normalized, lexicalCandidates, AST_FILE_CAP);
+    const shortlist = buildAstShortlist(searchRoot, normalized, lexicalCandidates, AST_FILE_CAP);
     const { candidates: astCandidates, filesScanned, matchCount } = astSearch(
-      shortlist, normalized, engine.workspaceRoot,
+      shortlist, normalized, searchRoot,
     );
 
     // Step 5: Merge + deduplicate + penalties
