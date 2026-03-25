@@ -32,6 +32,8 @@ import { findTestFiles } from './tools/composites/findTestFiles.js';
 import { explainError } from './tools/composites/explainError.js';
 import { findPattern } from './tools/composites/findPattern.js';
 import { findCodeByBehavior } from './tools/composites/findCodeByBehavior.js';
+import { apiGuard } from './tools/composites/apiGuard.js';
+import { rootCauseTrace } from './tools/composites/rootCauseTrace.js';
 
 // Context
 import { outline } from './tools/context/outline.js';
@@ -78,6 +80,8 @@ async function main() {
     explainError,
     findPattern,
     findCodeByBehavior,
+    apiGuard,
+    rootCauseTrace,
     // Layer 3: Context
     outline,
     gatherContext,
