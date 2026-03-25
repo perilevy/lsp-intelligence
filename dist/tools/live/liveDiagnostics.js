@@ -15,9 +15,10 @@ export const liveDiagnostics = defineTool({
         if (!engine.connection)
             return 'Error: LSP connection not available.';
         await engine.docManager.refreshFromDisk(params.file_path, engine.connection);
-        // Wait for TSServer to process changes
-        await new Promise((r) => setTimeout(r, 1000));
+        // Wait for TSServer to process changes (poll instead of fixed sleep)
         const uri = `file://${params.file_path}`;
+        const { waitForDiagnostics } = await import('../../engine/waitForDiagnostics.js');
+        await waitForDiagnostics(engine.docManager, uri, 1500);
         const diags = engine.docManager.getCachedDiagnostics(uri);
         const rel = relativePath(params.file_path, engine.workspaceRoot);
         if (diags.length === 0)

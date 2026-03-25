@@ -71,8 +71,9 @@ export const rootCauseTrace = defineTool({
 
     const { filePath, uri, position: targetPosition, symbol: symbolName } = target;
 
-    // Step 2: Anchor the diagnostic
-    await new Promise((r) => setTimeout(r, 500));
+    // Step 2: Anchor the diagnostic (poll for readiness instead of fixed sleep)
+    const { waitForDiagnostics } = await import('../../engine/waitForDiagnostics.js');
+    await waitForDiagnostics(engine.docManager, uri, 800);
     const allDiags = engine.docManager.getCachedDiagnostics(uri);
     const targetDiag = pickDiagnostic(allDiags, targetPosition, params.diagnostic_code);
 
@@ -150,7 +151,7 @@ export const rootCauseTrace = defineTool({
           try {
             const changed = base ? fileChangedInBranch(callerPath, base, engine.workspaceRoot) : false;
             await engine.prepareFile(callerPath);
-            await new Promise((r) => setTimeout(r, 200));
+            await waitForDiagnostics(engine.docManager, pathToUri(callerPath), 500);
             const callerDiags = engine.docManager.getCachedDiagnostics(pathToUri(callerPath)).filter((d) => d.severity === 1).length;
 
             let score = 2;

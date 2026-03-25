@@ -51,7 +51,8 @@ export async function resolveTarget(input: ToolTargetInput, engine: LspEngine): 
   // Priority 3: file_path + diagnostic_code
   if (input.file_path && input.diagnostic_code) {
     const { uri } = await engine.prepareFile(input.file_path);
-    await new Promise((r) => setTimeout(r, 500));
+    const { waitForDiagnostics } = await import('../engine/waitForDiagnostics.js');
+    await waitForDiagnostics(engine.docManager, uri, 800);
     const diags = engine.docManager.getCachedDiagnostics(uri);
     const match = diags.find((d) =>
       `TS${d.code}` === input.diagnostic_code || String(d.code) === input.diagnostic_code,

@@ -12,8 +12,8 @@ export const diagnostics = defineTool({
   }),
   async handler(params, engine) {
     const { uri } = await engine.prepareFile(params.file_path);
-    // Wait briefly for diagnostics to be pushed
-    await new Promise((r) => setTimeout(r, 500));
+    const { waitForDiagnostics } = await import('../../engine/waitForDiagnostics.js');
+    await waitForDiagnostics(engine.docManager, uri, 800);
     const diags = engine.docManager.getCachedDiagnostics(uri);
 
     if (diags.length === 0) {

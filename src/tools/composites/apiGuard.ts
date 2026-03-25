@@ -186,9 +186,12 @@ export const apiGuard = defineTool({
             try {
               const abs = fp.startsWith('/') ? fp : `${engine.workspaceRoot}/${fp}`;
               const { uri: consumerUri } = await engine.prepareFile(abs);
-              await new Promise((r) => setTimeout(r, 300));
+              const { waitForDiagnostics: waitDiag } = await import('../../engine/waitForDiagnostics.js');
+              await waitDiag(engine.docManager, consumerUri, 500);
               diagCount += engine.docManager.getCachedDiagnostics(consumerUri).filter((d: any) => d.severity === 1).length;
-            } catch {}
+            } catch (err) {
+              warnings.push(`Consumer diagnostics failed for ${fp}: ${err instanceof Error ? err.message : String(err)}`);
+            }
           }
           entry.diagnosticsInConsumers = diagCount;
 

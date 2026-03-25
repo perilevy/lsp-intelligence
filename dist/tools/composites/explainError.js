@@ -14,8 +14,9 @@ export const explainError = defineTool({
     async handler(params, engine) {
         const { uri } = await engine.prepareFile(params.file_path);
         const timeout = DEFAULT_TIMEOUTS.composite;
-        // Wait for diagnostics
-        await new Promise((r) => setTimeout(r, 500));
+        // Wait for diagnostics (poll instead of fixed sleep)
+        const { waitForDiagnostics } = await import('../../engine/waitForDiagnostics.js');
+        await waitForDiagnostics(engine.docManager, uri, 800);
         const diags = engine.docManager.getCachedDiagnostics(uri);
         // Find diagnostic at or near the specified line
         const targetLine = params.line - 1; // 0-indexed
