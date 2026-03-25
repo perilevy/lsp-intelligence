@@ -1,0 +1,137 @@
+import { z } from 'zod';
+import { defineTool } from '../registry.js';
+import { relativePath } from '../../engine/positions.js';
+import { formatHover } from '../../format/markdown.js';
+import type { Hover } from 'vscode-languageserver-protocol';
+import { DEFAULT_TIMEOUTS } from '../../engine/types.js';
+import { buildLexicalIndex } from '../../search/lexicalIndex.js';
+import { normalizeQuery, lexicalRecall } from '../../search/lexicalQuery.js';
+import { buildAstShortlist, astSearch } from '../../search/astSearch.js';
+import { mergeCandidates, applyPenalties, assessConfidence } from '../../search/rankCandidates.js';
+import type { BehaviorCandidate, FindCodeByBehaviorResult } from '../../search/types.js';
+
+// Cache the lexical index per workspace (built once, reused across queries)
+let cachedIndex: { root: string; entries: ReturnType<typeof buildLexicalIndex> } | null = null;
+
+export const findCodeByBehavior = defineTool({
+  name: 'find_code_by_behavior',
+  description:
+    'Find likely implementation entrypoints for a behavior described in natural language. Combines keyword search, AST structural patterns, and LSP enrichment. Good for: auth, validation, fetching, error handling, state management, feature flags.',
+  schema: z.object({
+    query: z.string().describe('Natural language description, e.g. "permission checks" or "JWT validation"'),
+    max_results: z.number().default(10).describe('Maximum results to return'),
+  }),
+  async handler(params, engine) {
+    const startTime = Date.now();
+
+    // Step 1: Normalize query
+    const normalized = normalizeQuery(params.query);
+
+    // Step 2: Build or reuse lexical index
+    if (!cachedIndex || cachedIndex.root !== engine.workspaceRoot) {
+      cachedIndex = { root: engine.workspaceRoot, entries: buildLexicalIndex(engine.workspaceRoot) };
+    }
+
+    // Step 3: Lexical recall
+    const lexicalCandidates = lexicalRecall(cachedIndex.entries, normalized, 100);
+
+    // Step 4: AST shortlist + search
+    const AST_FILE_CAP = normalized.behaviorFamilies.length > 1 ? 80 : 30;
+    const shortlist = buildAstShortlist(engine.workspaceRoot, normalized, lexicalCandidates, AST_FILE_CAP);
+    const { candidates: astCandidates, filesScanned, matchCount } = astSearch(
+      shortlist, normalized, engine.workspaceRoot,
+    );
+
+    // Step 5: Merge + deduplicate + penalties
+    const merged = mergeCandidates(lexicalCandidates, astCandidates);
+    const ranked = applyPenalties(merged);
+
+    // Step 6: LSP enrichment (top 15 only)
+    const enrichLimit = Math.min(15, ranked.length);
+    for (let i = 0; i < enrichLimit; i++) {
+      const c = ranked[i];
+      try {
+        const { uri } = await engine.prepareFile(c.filePath);
+        if (c.symbol) {
+          const hover = await engine.request<Hover | null>(
+            'textDocument/hover',
+            { textDocument: { uri }, position: { line: c.line - 1, character: 0 } },
+            5000,
+          ).catch(() => null);
+          if (hover) {
+            c.signature = formatHover(hover).substring(0, 200);
+          }
+        }
+        if (!c.sources.includes('lsp')) c.sources.push('lsp');
+      } catch {}
+    }
+
+    // Step 7: Confidence assessment
+    const confidence = assessConfidence(ranked);
+    const topResults = ranked.slice(0, params.max_results);
+
+    // Step 8: Format output
+    const result: FindCodeByBehaviorResult = {
+      query: params.query,
+      normalizedQuery: normalized,
+      stats: {
+        lexicalCandidates: lexicalCandidates.length,
+        astFilesScanned: filesScanned,
+        astMatches: matchCount,
+        enrichedCandidates: enrichLimit,
+      },
+      confidence,
+      candidates: topResults,
+    };
+
+    return formatResult(result, engine.workspaceRoot, Date.now() - startTime);
+  },
+});
+
+function formatResult(result: FindCodeByBehaviorResult, workspaceRoot: string, elapsedMs: number): string {
+  const lines: string[] = [];
+
+  lines.push(`# find_code_by_behavior: "${result.query}"\n`);
+  lines.push(`**Confidence:** ${result.confidence}`);
+  lines.push(`**Query:** tokens=[${result.normalizedQuery.tokens.join(', ')}] families=[${result.normalizedQuery.behaviorFamilies.join(', ')}]`);
+  lines.push(`**Stats:** ${result.stats.lexicalCandidates} lexical, ${result.stats.astFilesScanned} files AST-scanned, ${result.stats.astMatches} AST matches, ${result.stats.enrichedCandidates} enriched`);
+  lines.push(`**Time:** ${elapsedMs}ms\n`);
+
+  if (result.candidates.length === 0) {
+    lines.push('No candidates found. Try broader terms or check that the codebase is indexed.');
+    if (result.confidence === 'low') {
+      lines.push('\n*This query may use terminology that doesn\'t match the codebase naming conventions.*');
+    }
+    return lines.join('\n');
+  }
+
+  lines.push(`## Top ${result.candidates.length} candidates\n`);
+
+  for (let i = 0; i < result.candidates.length; i++) {
+    const c = result.candidates[i];
+    const rel = relativePath(c.filePath, workspaceRoot);
+    const kindLabel = c.kind ? ` (${c.kind})` : '';
+    const symbolLabel = c.symbol ? `\`${c.symbol}\`` : '_file_';
+    const scoreLabel = `score: ${c.score}`;
+    const sourceLabel = c.sources.join('+');
+
+    lines.push(`### ${i + 1}. ${symbolLabel}${kindLabel} — ${rel}:${c.line}`);
+    lines.push(`${scoreLabel} | sources: ${sourceLabel}`);
+
+    if (c.signature) {
+      lines.push(`\n${c.signature.substring(0, 150)}`);
+    }
+
+    if (c.evidence.length > 0) {
+      const evidenceStr = c.evidence
+        .filter((e) => !e.startsWith('penalty'))
+        .slice(0, 5)
+        .join(', ');
+      if (evidenceStr) lines.push(`Evidence: ${evidenceStr}`);
+    }
+
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}

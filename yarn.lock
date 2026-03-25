@@ -2,6 +2,66 @@
 # yarn lockfile v1
 
 
+"@ast-grep/napi-darwin-arm64@0.42.0":
+  version "0.42.0"
+  resolved "https://registry.npmjs.org/@ast-grep/napi-darwin-arm64/-/napi-darwin-arm64-0.42.0.tgz#9e040a20d90e8c8d17c23dd7bf719486ffbe80dc"
+  integrity sha512-HOPvjsrsASvfkRJGCd/++KZvfDCtBx6v8DKTEzzlc6fQJlhiRMPKe8T4d5I2T2rgV5pHsyJLSBLqEK7m346NTw==
+
+"@ast-grep/napi-darwin-x64@0.42.0":
+  version "0.42.0"
+  resolved "https://registry.npmjs.org/@ast-grep/napi-darwin-x64/-/napi-darwin-x64-0.42.0.tgz#e80edd7eec1ef49846a35a9172571bb7cb187473"
+  integrity sha512-q3jt+a6kDbXgbCSuIqaxjgLbTCDYGE2yb1o6metpsGbW+xVZR4ATYMJ8izyYhn2sQungTfUNn2/vo/2Bhbvpxg==
+
+"@ast-grep/napi-linux-arm64-gnu@0.42.0":
+  version "0.42.0"
+  resolved "https://registry.npmjs.org/@ast-grep/napi-linux-arm64-gnu/-/napi-linux-arm64-gnu-0.42.0.tgz#8385d50bec84a46d440d3e02e41061af0f33abae"
+  integrity sha512-+e2ThyRiBZATlcdgfrD7uYy9oWVS6/AdUTnC3xOwR+lCz80lr87kmcmeK6XN6hBwaqncBBkKV3ECMA8ibZPUZA==
+
+"@ast-grep/napi-linux-arm64-musl@0.42.0":
+  version "0.42.0"
+  resolved "https://registry.npmjs.org/@ast-grep/napi-linux-arm64-musl/-/napi-linux-arm64-musl-0.42.0.tgz#b01321fa884cde80368829ec7944b609d97fb2cd"
+  integrity sha512-f/oW3KaHuOMuBkCcvI6R71xM9SvkdUVKHhbJEtBFo5D1j6CjY9ipWdjlk9mOJ2KLLM6uYdjjvkJkBPlPuFTukg==
+
+"@ast-grep/napi-linux-x64-gnu@0.42.0":
+  version "0.42.0"
+  resolved "https://registry.npmjs.org/@ast-grep/napi-linux-x64-gnu/-/napi-linux-x64-gnu-0.42.0.tgz#475c7547bbcbdbd0c7d92782625be8ed9df41101"
+  integrity sha512-y9T/Tm6V6zkmcAJlWXUO0ACYLSlk5o5NVU+AYun7NzDWIM86Y3lnoDF5WxeZKonVoaGAnkCXVlNH8Tsr/NTQWw==
+
+"@ast-grep/napi-linux-x64-musl@0.42.0":
+  version "0.42.0"
+  resolved "https://registry.npmjs.org/@ast-grep/napi-linux-x64-musl/-/napi-linux-x64-musl-0.42.0.tgz#0e114aac25dbcbed41bd22cd7e5b57a153407f93"
+  integrity sha512-t1PwL6YweDL63QDK3TC9QTKROcVgN4XoMxlp/zN2NYvCUM90mSvqh/Py/ouchzluHaqCzEeEp9089WFEDWwQOA==
+
+"@ast-grep/napi-win32-arm64-msvc@0.42.0":
+  version "0.42.0"
+  resolved "https://registry.npmjs.org/@ast-grep/napi-win32-arm64-msvc/-/napi-win32-arm64-msvc-0.42.0.tgz#3ec1004a40694e4a9c8d7980e163cde118e73a03"
+  integrity sha512-bxKLXF1JmU33BoJKrbWcGsG7Xmk2zCQaUjmeHrxhgBhg2w2zo3CSf5S6DOyOp13hefgLXBLn6oXNzXgqpX/+lA==
+
+"@ast-grep/napi-win32-ia32-msvc@0.42.0":
+  version "0.42.0"
+  resolved "https://registry.npmjs.org/@ast-grep/napi-win32-ia32-msvc/-/napi-win32-ia32-msvc-0.42.0.tgz#e5f0a1e4ab19af0f2170403248dfcd86277fbf79"
+  integrity sha512-+/XbHDN+558rXwB2BylWPHj/cczRGDKivToHS2120TGQePmUetspu93wltqzAD7SVJnBILc2sEK1T1/jutZEvw==
+
+"@ast-grep/napi-win32-x64-msvc@0.42.0":
+  version "0.42.0"
+  resolved "https://registry.npmjs.org/@ast-grep/napi-win32-x64-msvc/-/napi-win32-x64-msvc-0.42.0.tgz#fff62185264456f033d6d7fbaaa597c126710da8"
+  integrity sha512-/5PTpk7EFuqwdJyKleX2gPztL5j73Nq/cdkEJQq1Fbx+ze+UM75JniW3D7J7WZygN58+EN9DAxpc2QOlK32urQ==
+
+"@ast-grep/napi@^0.42.0":
+  version "0.42.0"
+  resolved "https://registry.npmjs.org/@ast-grep/napi/-/napi-0.42.0.tgz#1a4d124f33d3079ee8c8d767578573534c1e778c"
+  integrity sha512-f3DAjeC657EqbWN2In+girgbpvnKMV77bONyhuezXK4XQtvbGCB55u3CnNvQv6EP0caIBTtDHqO5CVyO6qY4LQ==
+  optionalDependencies:
+    "@ast-grep/napi-darwin-arm64" "0.42.0"
+    "@ast-grep/napi-darwin-x64" "0.42.0"
+    "@ast-grep/napi-linux-arm64-gnu" "0.42.0"
+    "@ast-grep/napi-linux-arm64-musl" "0.42.0"
+    "@ast-grep/napi-linux-x64-gnu" "0.42.0"
+    "@ast-grep/napi-linux-x64-musl" "0.42.0"
+    "@ast-grep/napi-win32-arm64-msvc" "0.42.0"
+    "@ast-grep/napi-win32-ia32-msvc" "0.42.0"
+    "@ast-grep/napi-win32-x64-msvc" "0.42.0"
+
 "@emnapi/core@^1.7.1":
   version "1.9.1"
   resolved "https://registry.npmjs.org/@emnapi/core/-/core-1.9.1.tgz#2143069c744ca2442074f8078462e51edd63c7bd"

@@ -27,6 +27,8 @@ import { impactTrace } from './tools/composites/impactTrace.js';
 import { semanticDiff } from './tools/composites/semanticDiff.js';
 import { findTestFiles } from './tools/composites/findTestFiles.js';
 import { explainError } from './tools/composites/explainError.js';
+import { findPattern } from './tools/composites/findPattern.js';
+import { findCodeByBehavior } from './tools/composites/findCodeByBehavior.js';
 // Context
 import { outline } from './tools/context/outline.js';
 import { gatherContext } from './tools/context/gatherContext.js';
@@ -61,6 +63,8 @@ async function main() {
         semanticDiff,
         findTestFiles,
         explainError,
+        findPattern,
+        findCodeByBehavior,
         // Layer 3: Context
         outline,
         gatherContext,
