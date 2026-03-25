@@ -54,11 +54,11 @@ export const findPattern = defineTool({
     const lang = LANG_MAP[params.language];
     if (!lang) return `Error: Unsupported language "${params.language}"`;
 
+    const warnings: string[] = [];
     const extMap: Record<string, string[]> = {
       typescript: ['.ts'],
       tsx: ['.tsx', '.ts'],
       javascript: ['.js'],
-      jsx: ['.jsx', '.js'],
     };
     const extensions = extMap[params.language];
 
@@ -86,17 +86,23 @@ export const findPattern = defineTool({
             context: getContextLines(content, range.start.line, 1),
           });
         }
-      } catch {}
+      } catch (err) {
+        warnings.push(`Parse failed for ${relativePath(file, engine.workspaceRoot)}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
-    if (results.length === 0) return `No matches for pattern: \`${params.pattern}\``;
-
-    const lines = [`# Pattern Search: \`${params.pattern}\`\n\n${results.length} matches in ${allFiles.length} files scanned\n`];
-    for (const r of results) {
-      const rel = relativePath(r.file, engine.workspaceRoot);
-      lines.push(`## ${rel}:${r.line}\n\`\`\`\n${r.context}\n\`\`\`\n`);
-    }
-
-    return lines.join('\n');
+    return {
+      pattern: params.pattern,
+      language: params.language,
+      filesScanned: allFiles.length,
+      matchCount: results.length,
+      matches: results.map((r) => ({
+        filePath: relativePath(r.file, engine.workspaceRoot),
+        line: r.line,
+        text: r.text,
+        context: r.context,
+      })),
+      warnings,
+    };
   },
 });

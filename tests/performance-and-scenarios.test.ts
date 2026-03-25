@@ -21,11 +21,8 @@ describe('Performance Budgets', () => {
     const result = await findPattern.handler(
       { pattern: 'export const $NAME = $$$', language: 'typescript', max_results: 50 },
       engine,
-    );
-    // The fixture has ~15 files, so this should be well under 200
-    expect(result).toContain('files scanned');
-    const scanMatch = result.match(/(\d+) files scanned/);
-    expect(Number(scanMatch?.[1])).toBeLessThan(200);
+    ) as any;
+    expect(result.filesScanned).toBeLessThan(200);
   });
 
   it('find_code_by_behavior caps enrichment at 15', async () => {
@@ -124,9 +121,9 @@ describe('Fixture Scenarios', () => {
       const result = await findPattern.handler(
         { pattern: 'switch ($VAR) { $$$ }', language: 'typescript', max_results: 10 },
         engine,
-      );
+      ) as any;
       // statusHandler.ts has a switch on ItemStatus
-      expect(result).toMatch(/statusHandler|switch/);
+      expect(result.matchCount).toBeGreaterThan(0);
     });
   });
 

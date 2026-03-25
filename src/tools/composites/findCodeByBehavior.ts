@@ -10,8 +10,9 @@ import { buildAstShortlist, astSearch } from '../../search/astSearch.js';
 import { mergeCandidates, applyPenalties, assessConfidence } from '../../search/rankCandidates.js';
 import type { BehaviorCandidate, FindCodeByBehaviorResult } from '../../search/types.js';
 
-// Cache the lexical index per workspace (built once, reused across queries)
-let cachedIndex: { root: string; entries: ReturnType<typeof buildLexicalIndex> } | null = null;
+// Cache the lexical index with TTL
+const INDEX_TTL_MS = 10_000;
+let cachedIndex: { root: string; builtAt: number; entries: ReturnType<typeof buildLexicalIndex> } | null = null;
 
 export const findCodeByBehavior = defineTool({
   name: 'find_code_by_behavior',
@@ -28,8 +29,12 @@ export const findCodeByBehavior = defineTool({
     const normalized = normalizeQuery(params.query);
 
     // Step 2: Build or reuse lexical index
-    if (!cachedIndex || cachedIndex.root !== engine.workspaceRoot) {
-      cachedIndex = { root: engine.workspaceRoot, entries: buildLexicalIndex(engine.workspaceRoot) };
+    if (
+      !cachedIndex ||
+      cachedIndex.root !== engine.workspaceRoot ||
+      Date.now() - cachedIndex.builtAt > INDEX_TTL_MS
+    ) {
+      cachedIndex = { root: engine.workspaceRoot, builtAt: Date.now(), entries: buildLexicalIndex(engine.workspaceRoot) };
     }
 
     // Step 3: Lexical recall

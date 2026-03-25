@@ -18,6 +18,7 @@ import { LspError, LspErrorCode, DEFAULT_TIMEOUTS, SKIP_DIRS } from '../../engin
 interface ApiGuardEntry {
   exportName: string;
   filePath: string;
+  line?: number;
   declarationKind?: string;
   kind: ApiChangeKind;
   risk: ApiRiskLevel;
@@ -139,6 +140,7 @@ export const apiGuard = defineTool({
           entries.push({
             exportName: d.name,
             filePath,
+            line: d.currentDecl?.line ?? d.baseDecl?.line,
             declarationKind: d.baseDecl?.declarationKind ?? d.currentDecl?.declarationKind,
             kind: d.kind,
             risk: d.risk,
@@ -154,57 +156,61 @@ export const apiGuard = defineTool({
       } catch {}
     }
 
-    // Step 4: Find consumers for non-safe entries (cap at 3 consumer-diagnostic checks)
+    // Step 4: Find consumers using declaration line data (no raw text rescanning)
     let consumerChecks = 0;
     for (const entry of entries.filter((e) => e.risk !== 'safe')) {
       if (consumerChecks >= 15) { warnings.push('Consumer lookup capped at 15 entries'); break; }
       try {
         const { uri } = await engine.prepareFile(entry.filePath);
-        const content = fs.readFileSync(entry.filePath, 'utf-8');
-        const lines = content.split('\n');
-        let exportLine = -1;
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i].includes(entry.exportName) && lines[i].includes('export')) {
-            exportLine = i; break;
+        const exportLine0 = Math.max(0, (entry.line ?? 1) - 1);
+
+        const refs = await engine.request<Location[] | null>(
+          'textDocument/references', {
+            textDocument: { uri },
+            position: { line: exportLine0, character: 0 },
+            context: { includeDeclaration: false },
+          }, timeout,
+        ).catch((err: unknown) => { warnings.push(`Consumer lookup failed for ${entry.exportName}: ${err instanceof Error ? err.message : String(err)}`); return null; });
+
+        if (refs) {
+          const currentPkg = getPackageName(entry.filePath);
+          const samePackage = refs.filter((r) => getPackageName(uriToPath(r.uri)) === currentPkg).length;
+          const crossPackage = refs.length - samePackage;
+          const sampleFiles = [...new Set(refs.map((r) => relativePath(uriToPath(r.uri), engine.workspaceRoot)))].slice(0, 5);
+          entry.consumers = { samePackage, crossPackage, sampleFiles };
+          entry.evidence.push(`${crossPackage} cross-package, ${samePackage} same-package consumers`);
+
+          // Populate diagnosticsInConsumers (sample up to 3 consumer files)
+          let diagCount = 0;
+          for (const fp of sampleFiles.slice(0, 3)) {
+            try {
+              const abs = fp.startsWith('/') ? fp : `${engine.workspaceRoot}/${fp}`;
+              const { uri: consumerUri } = await engine.prepareFile(abs);
+              await new Promise((r) => setTimeout(r, 300));
+              diagCount += engine.docManager.getCachedDiagnostics(consumerUri).filter((d: any) => d.severity === 1).length;
+            } catch {}
           }
-        }
+          entry.diagnosticsInConsumers = diagCount;
 
-        if (exportLine >= 0) {
-          const refs = await engine.request<Location[] | null>(
-            'textDocument/references', {
-              textDocument: { uri },
-              position: { line: exportLine, character: Math.max(0, lines[exportLine].indexOf(entry.exportName)) },
-              context: { includeDeclaration: false },
-            }, timeout,
-          ).catch(() => null);
-
-          if (refs) {
-            const currentPkg = getPackageName(entry.filePath);
-            const samePackage = refs.filter((r) => getPackageName(uriToPath(r.uri)) === currentPkg).length;
-            const crossPackage = refs.length - samePackage;
-            entry.consumers = {
-              samePackage,
-              crossPackage,
-              sampleFiles: [...new Set(refs.map((r) => relativePath(uriToPath(r.uri), engine.workspaceRoot)))].slice(0, 5),
-            };
-            entry.evidence.push(`${crossPackage} cross-package, ${samePackage} same-package consumers`);
-
-            // Downgrade risk if no cross-package consumers
-            if (crossPackage === 0 && entry.risk === 'risky') {
-              entry.risk = 'safe';
-              entry.reason += ' (no cross-package consumers)';
-            }
+          // Downgrade risk if no cross-package consumers
+          if (crossPackage === 0 && entry.risk === 'risky') {
+            entry.risk = 'safe';
+            entry.reason += ' (no cross-package consumers)';
           }
         }
         consumerChecks++;
-      } catch {}
+      } catch (err) {
+        warnings.push(`Consumer analysis failed for ${entry.exportName}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
     // Step 5: Classify and summarize
     const breaking = entries.filter((e) => e.risk === 'breaking').length;
     const risky = entries.filter((e) => e.risk === 'risky').length;
     const safe = entries.filter((e) => e.risk === 'safe').length;
-    const semver: 'major' | 'minor' | 'patch' = breaking > 0 ? 'major' : risky > 0 ? 'minor' : 'patch';
+    // Semver: breaking → major, additive-only → minor, else patch
+    const hasAdditive = entries.some((e) => e.kind === 'added' && e.risk === 'safe');
+    const semver: 'major' | 'minor' | 'patch' = breaking > 0 ? 'major' : hasAdditive ? 'minor' : 'patch';
 
     const result: ApiGuardResult = {
       summary: {

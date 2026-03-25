@@ -1,5 +1,6 @@
 import type { LspEngine } from '../engine/LspEngine.js';
-import { toPosition, pathToUri } from '../engine/positions.js';
+import type { Diagnostic } from 'vscode-languageserver-protocol';
+import { toPosition, uriToPath } from '../engine/positions.js';
 
 export interface ToolTargetInput {
   symbol?: string;
@@ -20,7 +21,7 @@ export interface ResolvedTarget {
 
 /**
  * Resolve a tool input into a canonical target with file + position.
- * Priority: symbol+file_path > symbol > file_path+line > file_path alone
+ * Priority: symbol+file_path > symbol > file_path+line > file_path+diagnostic_code > file_path alone
  */
 export async function resolveTarget(input: ToolTargetInput, engine: LspEngine): Promise<ResolvedTarget> {
   // Priority 1: symbol (with optional file hint)
@@ -29,7 +30,7 @@ export async function resolveTarget(input: ToolTargetInput, engine: LspEngine): 
     return {
       symbol: resolved.name,
       uri: resolved.uri,
-      filePath: resolved.uri.replace('file://', ''),
+      filePath: uriToPath(resolved.uri),
       position: resolved.position,
       confidence: 'high',
     };
@@ -52,7 +53,9 @@ export async function resolveTarget(input: ToolTargetInput, engine: LspEngine): 
     const { uri } = await engine.prepareFile(input.file_path);
     await new Promise((r) => setTimeout(r, 500));
     const diags = engine.docManager.getCachedDiagnostics(uri);
-    const match = diags.find((d) => `TS${d.code}` === input.diagnostic_code || String(d.code) === input.diagnostic_code);
+    const match = diags.find((d) =>
+      `TS${d.code}` === input.diagnostic_code || String(d.code) === input.diagnostic_code,
+    );
     if (match) {
       return {
         uri,
@@ -61,10 +64,9 @@ export async function resolveTarget(input: ToolTargetInput, engine: LspEngine): 
         confidence: 'high',
       };
     }
-    // Fall through to file-only
   }
 
-  // Priority 4: file_path alone (position at line 1)
+  // Priority 4: file_path alone
   if (input.file_path) {
     const { uri } = await engine.prepareFile(input.file_path);
     return {
@@ -76,4 +78,38 @@ export async function resolveTarget(input: ToolTargetInput, engine: LspEngine): 
   }
 
   throw new Error('Provide at least a symbol name or file_path.');
+}
+
+/**
+ * Pick the best diagnostic near a position.
+ * Priority: exact code match > exact line > nearest ±2 > first error
+ */
+export function pickDiagnostic(
+  diagnostics: Diagnostic[],
+  position: { line: number; character: number },
+  diagnosticCode?: string,
+): Diagnostic | undefined {
+  const errors = diagnostics.filter((d) => d.severity === 1);
+  if (errors.length === 0) return undefined;
+
+  // Exact diagnostic code match
+  if (diagnosticCode) {
+    const byCode = errors.find((d) =>
+      `TS${d.code}` === diagnosticCode || String(d.code) === diagnosticCode,
+    );
+    if (byCode) return byCode;
+  }
+
+  // Exact line match
+  const byLine = errors.find((d) => d.range.start.line === position.line);
+  if (byLine) return byLine;
+
+  // Nearest line within ±2
+  const nearby = errors
+    .filter((d) => Math.abs(d.range.start.line - position.line) <= 2)
+    .sort((a, b) => Math.abs(a.range.start.line - position.line) - Math.abs(b.range.start.line - position.line));
+  if (nearby.length > 0) return nearby[0];
+
+  // First error
+  return errors[0];
 }

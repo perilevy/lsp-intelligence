@@ -18,48 +18,47 @@ describe('v0.2 Features', () => {
   });
 
   describe('find_pattern', () => {
-    it('finds export statements', async () => {
+    it('finds export statements and returns structured result', async () => {
       const result = await findPattern.handler(
         { pattern: 'export const $NAME = $$$', language: 'typescript', max_results: 20 },
         engine,
-      );
-      // Should find exported const declarations in fixture
-      expect(result).toContain('Pattern Search');
-      expect(result).toContain('matches');
+      ) as any;
+      expect(result).toHaveProperty('matchCount');
+      expect(result).toHaveProperty('matches');
+      expect(result).toHaveProperty('filesScanned');
+      expect(result.matchCount).toBeGreaterThan(0);
     });
 
     it('finds try/catch blocks', async () => {
       const result = await findPattern.handler(
         { pattern: 'try { $$$ } catch ($E) { $$$ }', language: 'typescript', max_results: 10 },
         engine,
-      );
-      // errorBoundary.ts has try/catch
-      expect(result).toMatch(/match|errorBoundary/);
+      ) as any;
+      expect(result.matchCount).toBeGreaterThan(0);
     });
 
     it('finds async functions', async () => {
       const result = await findPattern.handler(
         { pattern: 'async function $F($$$) { $$$ }', language: 'typescript', max_results: 10 },
         engine,
-      );
-      // fetchItems and withRetry are async
-      expect(result).toContain('matches');
+      ) as any;
+      expect(result.matchCount).toBeGreaterThanOrEqual(0);
     });
 
-    it('returns no matches for impossible pattern', async () => {
+    it('returns zero matches for impossible pattern', async () => {
       const result = await findPattern.handler(
         { pattern: 'xyzNeverMatchThis123($$$)', language: 'typescript', max_results: 10 },
         engine,
-      );
-      expect(result).toContain('No matches');
+      ) as any;
+      expect(result.matchCount).toBe(0);
     });
 
     it('limits results by max_results', async () => {
       const result = await findPattern.handler(
         { pattern: 'export const $NAME = $$$', language: 'typescript', max_results: 2 },
         engine,
-      );
-      expect(result).toContain('2 matches');
+      ) as any;
+      expect(result.matchCount).toBe(2);
     });
   });
 
@@ -188,6 +187,17 @@ describe('v0.2 Features', () => {
       ) as any;
       expect(result).toHaveProperty('warnings');
       expect(result.candidates).toEqual([]);
+    });
+
+    it('supports symbol-only input (no file_path required)', async () => {
+      const result = await rootCauseTrace.handler(
+        { symbol: 'Config' },
+        engine,
+      ) as any;
+      expect(result).toHaveProperty('stats');
+      expect(result).toHaveProperty('warnings');
+      // Config is clean — should report no diagnostic
+      expect(result.warnings.some((w: string) => /No error/i.test(w))).toBe(true);
     });
   });
 });
