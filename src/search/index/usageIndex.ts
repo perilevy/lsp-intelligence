@@ -1,0 +1,13 @@
+import { parseSourceFile } from '../../analysis/ts/parseSourceFile.js';
+import { extractUsages } from '../../analysis/ts/extractUsages.js';
+import type { UsageIndexEntry } from '../types.js';
+
+/**
+ * Build usage index entries for a single file.
+ * Indexes call expressions, member calls, imports, JSX tags using TS compiler AST.
+ */
+export function indexFileUsages(filePath: string): UsageIndexEntry[] {
+  const sf = parseSourceFile(filePath);
+  if (!sf) return [];
+  return extractUsages(sf);
+}
