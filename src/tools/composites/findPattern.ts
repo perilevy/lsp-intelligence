@@ -1,45 +1,13 @@
 import { z } from 'zod';
-import * as fs from 'fs';
-import * as path from 'path';
-import { parse, Lang } from '@ast-grep/napi';
 import { defineTool } from '../registry.js';
-import { relativePath } from '../../engine/positions.js';
-import { SKIP_DIRS } from '../../engine/types.js';
+import { resolveSearchScope } from '../../resolve/searchScope.js';
+import { runPatternSearch } from '../../analysis/pattern/runPatternSearch.js';
+import type { FindPatternResult } from '../../search/types.js';
 
-const LANG_MAP: Record<string, Lang> = {
-  typescript: Lang.TypeScript,
-  tsx: Lang.Tsx,
-  javascript: Lang.JavaScript,
-};
-
-function collectFiles(dir: string, ext: string[], maxFiles: number): string[] {
-  const files: string[] = [];
-  const walk = (d: string, depth: number) => {
-    if (depth > 6 || files.length >= maxFiles) return;
-    try {
-      for (const entry of fs.readdirSync(d)) {
-        if (SKIP_DIRS.has(entry)) continue;
-        const full = path.join(d, entry);
-        const stat = fs.statSync(full);
-        if (stat.isDirectory()) walk(full, depth + 1);
-        else if (ext.some((e) => entry.endsWith(e))) files.push(full);
-      }
-    } catch {}
-  };
-  walk(dir, 0);
-  return files;
-}
-
-function getContextLines(content: string, line0: number, ctx: number): string {
-  const lines = content.split('\n');
-  const start = Math.max(0, line0 - ctx);
-  const end = Math.min(lines.length - 1, line0 + ctx);
-  return lines
-    .slice(start, end + 1)
-    .map((l, i) => `${start + i + 1}| ${l}`)
-    .join('\n');
-}
-
+/**
+ * Thin wrapper over runPatternSearch().
+ * No duplicated file collection or parse loops.
+ */
 export const findPattern = defineTool({
   name: 'find_pattern',
   description:
@@ -49,60 +17,29 @@ export const findPattern = defineTool({
     language: z.enum(['typescript', 'tsx', 'javascript']).default('typescript'),
     paths: z.array(z.string()).optional().describe('Limit search to specific directories (absolute paths)'),
     max_results: z.number().default(50),
+    context_lines: z.number().default(1),
   }),
   async handler(params, engine) {
-    const lang = LANG_MAP[params.language];
-    if (!lang) return `Error: Unsupported language "${params.language}"`;
+    const scope = resolveSearchScope(engine.workspaceRoot, params.paths, true);
 
-    const warnings: string[] = [];
-    const extMap: Record<string, string[]> = {
-      typescript: ['.ts'],
-      tsx: ['.tsx', '.ts'],
-      javascript: ['.js'],
-    };
-    const extensions = extMap[params.language];
-
-    const searchDirs = params.paths ?? [engine.workspaceRoot];
-    const allFiles: string[] = [];
-    for (const dir of searchDirs) {
-      allFiles.push(...collectFiles(dir, extensions, 500));
-    }
-
-    const results: { file: string; line: number; text: string; context: string }[] = [];
-
-    for (const file of allFiles) {
-      if (results.length >= params.max_results) break;
-      try {
-        const content = fs.readFileSync(file, 'utf-8');
-        const root = parse(lang, content).root();
-        const matches = root.findAll(params.pattern);
-        for (const match of matches) {
-          if (results.length >= params.max_results) break;
-          const range = match.range();
-          results.push({
-            file,
-            line: range.start.line + 1,
-            text: match.text().substring(0, 200),
-            context: getContextLines(content, range.start.line, 1),
-          });
-        }
-      } catch (err) {
-        warnings.push(`Parse failed for ${relativePath(file, engine.workspaceRoot)}: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-
-    return {
+    const { filesScanned, matches, warnings } = runPatternSearch({
       pattern: params.pattern,
       language: params.language,
-      filesScanned: allFiles.length,
-      matchCount: results.length,
-      matches: results.map((r) => ({
-        filePath: relativePath(r.file, engine.workspaceRoot),
-        line: r.line,
-        text: r.text,
-        context: r.context,
-      })),
+      scope,
+      maxResults: params.max_results,
+      contextLines: params.context_lines,
+      workspaceRoot: engine.workspaceRoot,
+    });
+
+    const result: FindPatternResult = {
+      pattern: params.pattern,
+      language: params.language,
+      filesScanned,
+      matchCount: matches.length,
+      matches,
       warnings,
     };
+
+    return result;
   },
 });
