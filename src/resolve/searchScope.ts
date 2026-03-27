@@ -1,8 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { SearchScope } from '../search/types.js';
-import { SKIP_DIRS } from '../engine/types.js';
-import { isCodeFile, isTestFile } from '../search/fileKinds.js';
+import { isCodeFile, isTestFile, shouldSkipDir, shouldSkipFile } from '../search/fileKinds.js';
 
 /**
  * Resolve a search scope from user input.
@@ -25,7 +24,7 @@ export function resolveSearchScope(
 
 /**
  * Collect all code files (TS/TSX/JS/JSX/MJS/CJS) within the search scope.
- * Respects includeTests and SKIP_DIRS.
+ * Skips dot-prefixed dirs, build output, minified/bundled files, and oversized files.
  */
 export function collectScopeFiles(scope: SearchScope, maxFiles: number = 2000): string[] {
   const files: string[] = [];
@@ -48,12 +47,12 @@ function walkDir(
   if (depth > 8 || files.length >= maxFiles) return;
   try {
     for (const entry of fs.readdirSync(dir)) {
-      if (SKIP_DIRS.has(entry)) continue;
+      if (shouldSkipDir(entry)) continue;
       const full = path.join(dir, entry);
       const stat = fs.statSync(full);
       if (stat.isDirectory()) {
         walkDir(full, files, includeTests, maxFiles, depth + 1);
-      } else if (isCodeFile(full)) {
+      } else if (isCodeFile(full) && !shouldSkipFile(full, stat.size)) {
         if (!includeTests && isTestFile(full)) continue;
         files.push(full);
       }

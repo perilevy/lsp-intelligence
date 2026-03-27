@@ -1,8 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { ConfigIndexEntry, SearchScope } from '../types.js';
-import { SKIP_DIRS } from '../../engine/types.js';
-import { isConfigFile } from '../fileKinds.js';
+import { shouldSkipDir } from '../fileKinds.js';
 
 const CONFIG_EXTENSIONS = ['.json', '.yaml', '.yml', '.env', '.toml'];
 const CONFIG_FILENAMES = [
@@ -50,7 +49,7 @@ function collectConfigFiles(dir: string, files: string[], maxFiles: number, dept
   if (depth > 4 || files.length >= maxFiles) return;
   try {
     for (const entry of fs.readdirSync(dir)) {
-      if (SKIP_DIRS.has(entry)) continue;
+      if (shouldSkipDir(entry)) continue;
       const full = path.join(dir, entry);
       const stat = fs.statSync(full);
       if (stat.isDirectory()) {

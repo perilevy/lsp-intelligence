@@ -1,11 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { SearchScope } from '../../search/types.js';
-import { SKIP_DIRS } from '../../engine/types.js';
-import { isTestFile } from '../../search/fileKinds.js';
+import { isTestFile, shouldSkipDir, shouldSkipFile } from '../../search/fileKinds.js';
 
 /**
  * Collect files matching a set of extensions within a search scope.
+ * Skips dot-prefixed dirs, build output, minified/bundled files, and oversized files.
  */
 export function collectSearchFiles(
   scope: SearchScope,
@@ -33,12 +33,12 @@ function walkDir(
   if (depth > 8 || files.length >= maxFiles) return;
   try {
     for (const entry of fs.readdirSync(dir)) {
-      if (SKIP_DIRS.has(entry)) continue;
+      if (shouldSkipDir(entry)) continue;
       const full = path.join(dir, entry);
       const stat = fs.statSync(full);
       if (stat.isDirectory()) {
         walkDir(full, files, extensions, includeTests, maxFiles, depth + 1);
-      } else if (extensions.some((e) => entry.endsWith(e)) && !entry.endsWith('.d.ts')) {
+      } else if (extensions.some((e) => entry.endsWith(e)) && !shouldSkipFile(full, stat.size)) {
         if (!includeTests && isTestFile(full)) continue;
         files.push(full);
       }
