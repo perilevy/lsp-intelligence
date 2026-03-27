@@ -43,6 +43,7 @@ import { gatherContext } from './tools/context/gatherContext.js';
 import { liveDiagnostics } from './tools/live/liveDiagnostics.js';
 import { findUnusedExports } from './tools/live/findUnusedExports.js';
 import { autoImport } from './tools/live/autoImport.js';
+import { clearIndex } from './tools/live/clearIndex.js';
 
 const workspaceRoot = process.env.LSP_WORKSPACE_ROOT || process.cwd();
 
@@ -89,6 +90,7 @@ async function main() {
     liveDiagnostics,
     findUnusedExports,
     autoImport,
+    clearIndex,
   ]);
 
   engine.initialize().catch((err) => {

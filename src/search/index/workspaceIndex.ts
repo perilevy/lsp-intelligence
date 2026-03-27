@@ -13,6 +13,13 @@ const INDEX_VERSION = 2;
 // Per-workspace cache with per-file mtime invalidation
 let cachedIndex: (WorkspaceIndex & { _version?: number }) | null = null;
 
+/** Force-clear the in-memory workspace index. Next query will rebuild from scratch. */
+export function clearWorkspaceIndex(): { cleared: boolean; hadEntries: number } {
+  const hadEntries = cachedIndex?.files.size ?? 0;
+  cachedIndex = null;
+  return { cleared: true, hadEntries };
+}
+
 /**
  * Get or build a workspace index for the given scope.
  * Uses per-file mtime to invalidate stale entries — no TTL.

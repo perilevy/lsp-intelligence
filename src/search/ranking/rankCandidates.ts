@@ -3,21 +3,39 @@ import type { LspEngine } from '../../engine/LspEngine.js';
 import type { Hover } from 'vscode-languageserver-protocol';
 import { formatHover } from '../../format/markdown.js';
 import { relativePath } from '../../engine/positions.js';
+import { shouldSkipDir, shouldSkipFile } from '../fileKinds.js';
+import * as path from 'path';
 
 const TEST_PATTERN = /\.(spec|test|stories)\.(ts|tsx|js|jsx)$/;
 const GENERATED_PATTERN = /\/(dist|es|build|generated|__generated__|\.cache)\//;
 const DEMO_PATTERN = /\/(demo|example|storybook|stories|fixtures)\//;
 
 /**
+ * Check if a candidate's file path should be excluded.
+ * Applied at ranking time as a safety net — catches files from stale indexes.
+ */
+function isExcludedPath(filePath: string): boolean {
+  const parts = filePath.split(path.sep);
+  for (const part of parts) {
+    if (shouldSkipDir(part)) return true;
+  }
+  if (shouldSkipFile(filePath)) return true;
+  return false;
+}
+
+/**
  * Rank candidates with mode-aware scoring + LSP enrichment.
- * Applies penalties, enriches top candidates with hover signatures.
+ * First filters excluded paths, then applies penalties, enriches top candidates.
  */
 export async function rankCandidates(
   candidates: CodeCandidate[],
   ctx: { ir: QueryIR; plan: SearchPlan; engine: LspEngine; scope: SearchScope },
 ): Promise<CodeCandidate[]> {
+  // Post-filter: remove candidates from excluded paths (safety net for stale indexes)
+  const clean = candidates.filter((c) => !isExcludedPath(c.filePath));
+
   // Apply penalties
-  for (const c of candidates) {
+  for (const c of clean) {
     if (TEST_PATTERN.test(c.filePath)) { c.score -= 3; c.evidence.push('penalty: test-file'); }
     if (GENERATED_PATTERN.test(c.filePath)) { c.score -= 10; c.evidence.push('penalty: generated'); }
     if (DEMO_PATTERN.test(c.filePath)) { c.score -= 4; c.evidence.push('penalty: demo'); }
@@ -25,7 +43,7 @@ export async function rankCandidates(
   }
 
   // Filter out negative scores
-  const filtered = candidates.filter((c) => c.score > 0);
+  const filtered = clean.filter((c) => c.score > 0);
 
   // Sort by score
   filtered.sort((a, b) => b.score - a.score);
