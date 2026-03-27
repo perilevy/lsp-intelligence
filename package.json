@@ -1,6 +1,6 @@
 {
   "name": "lsp-intelligence",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "LSP-powered code intelligence MCP server for AI coding agents",
   "type": "module",
   "bin": {
@@ -13,8 +13,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
-    "prepublishOnly": "tsc",
+    "clean": "rm -rf dist",
+    "build": "rm -rf dist && tsc",
+    "prepublishOnly": "rm -rf dist && tsc",
     "start": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",

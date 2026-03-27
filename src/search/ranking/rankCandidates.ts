@@ -44,7 +44,9 @@ export async function rankCandidates(
         c.signature = formatHover(hover).substring(0, 200);
         if (!c.sources.includes('lsp')) c.sources.push('lsp');
       }
-    } catch {}
+    } catch (err: any) {
+      c.evidence.push(`lsp-enrich-failed: ${err?.message ?? 'unknown'}`);
+    }
   }
 
   // Relativize file paths

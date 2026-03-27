@@ -1,6 +1,18 @@
 import type { QueryIR, StructuralPredicate, SearchPlan } from '../types.js';
 import { scoreFamilies } from '../families/behaviorFamilies.js';
 
+// Short family names (from find_code schema) → real family IDs
+const FAMILY_ALIASES: Record<string, string> = {
+  auth: 'auth_permission',
+  errors: 'error_handling',
+  state: 'state_management',
+  flags: 'feature_flags',
+  retry: 'retry_backoff',
+  validation: 'validation',
+  fetching: 'fetching',
+  caching: 'caching',
+};
+
 // Structural cue words — preserved, NOT removed as stop words
 const STRUCTURAL_CUES = new Set([
   'conditional', 'conditionally', 'if', 'return', 'returns', 'cleanup',
@@ -32,10 +44,10 @@ const PREDICATE_MAP: Record<string, StructuralPredicate[]> = {
   conditional: ['conditional'],
   conditionally: ['conditional'],
   if: ['conditional'],
-  return: ['returns-function'],
-  returns: ['returns-function'],
-  cleanup: ['returns-cleanup'],
-  callback: ['hook-callback'],
+  return: [],   // phrase-based: only fires in combination (returns + cleanup, etc.)
+  returns: [],   // phrase-based: only fires in combination
+  cleanup: [],   // phrase-based: returns + cleanup → returns-cleanup
+  callback: [],  // phrase-based: callback + hook identifier → hook-callback
   try: ['has-try-catch'],
   catch: ['has-try-catch'],
   without: [], // modifier — inverts next predicate
@@ -106,8 +118,38 @@ export function parseQuery(
     }
   }
 
-  // If we have a hook identifier + structural cues, add hook-callback
-  if (exactIdentifiers.some((id) => HOOK_PATTERN.test(id)) && structuralPredicates.length > 0) {
+  // Phrase-based structural inference — requires combinations, not isolated keywords.
+  // This prevents "returns" alone from implying returns-function.
+  const hasHookId = exactIdentifiers.some((id) => HOOK_PATTERN.test(id));
+
+  if (codeTokens.includes('cleanup')) {
+    if (codeTokens.includes('returns') || codeTokens.includes('return')) {
+      // "returns cleanup" or "return cleanup"
+      if (hasWithout) {
+        if (!structuralPredicates.includes('no-cleanup')) structuralPredicates.push('no-cleanup');
+      } else {
+        if (!structuralPredicates.includes('returns-cleanup')) structuralPredicates.push('returns-cleanup');
+      }
+    } else if (hasWithout) {
+      // "without cleanup" (no returns keyword needed)
+      if (!structuralPredicates.includes('no-cleanup')) structuralPredicates.push('no-cleanup');
+    }
+  }
+
+  if (codeTokens.includes('returns') || codeTokens.includes('return')) {
+    if (codeTokens.includes('callback') || hasHookId) {
+      // "returns callback" or "useEffect ... returns"
+      if (!structuralPredicates.includes('returns-function')) structuralPredicates.push('returns-function');
+    }
+  }
+
+  if (codeTokens.includes('callback') && hasHookId) {
+    // "useEffect callback" — hook + callback together
+    if (!structuralPredicates.includes('hook-callback')) structuralPredicates.push('hook-callback');
+  }
+
+  // Hook identifier + any structural predicates → add hook-callback context
+  if (hasHookId && structuralPredicates.length > 0) {
     if (!structuralPredicates.includes('hook-callback')) {
       structuralPredicates.push('hook-callback');
     }
@@ -131,9 +173,10 @@ export function parseQuery(
   const allTerms = [...nlTokens, ...codeTokens];
   let familyScores = scoreFamilies(allTerms);
 
-  // Apply forced family
+  // Apply forced family (resolve short alias → real ID)
   if (opts?.forcedFamily) {
-    familyScores[opts.forcedFamily] = (familyScores[opts.forcedFamily] ?? 0) + 10;
+    const resolvedFamily = FAMILY_ALIASES[opts.forcedFamily] ?? opts.forcedFamily;
+    familyScores[resolvedFamily] = (familyScores[resolvedFamily] ?? 0) + 10;
   }
 
   // --- Mode routing ---

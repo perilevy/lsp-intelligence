@@ -23,10 +23,18 @@ describe('Query Planner', () => {
     expect(plan.retrievers).toContain('identifier');
   });
 
-  it('routes mixed queries to multiple retrievers', () => {
+  it('routes NL permission query to behavior only (returns alone is not structural)', () => {
     const ir = parseQuery('permission guard that returns boolean');
     const plan = planQuery(ir);
-    // Should have behavior (permission) + structural (returns)
+    // "returns" alone no longer implies structural — this should be behavior-only
+    expect(plan.retrievers).toContain('behavior');
+    expect(plan.retrievers).not.toContain('structural');
+  });
+
+  it('routes mixed queries to multiple retrievers', () => {
+    const ir = parseQuery('useEffect permission hook that returns cleanup');
+    const plan = planQuery(ir);
+    // Hook identifier + "returns cleanup" → structural + identifier
     expect(plan.retrievers.length).toBeGreaterThanOrEqual(2);
   });
 

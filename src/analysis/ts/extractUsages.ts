@@ -24,6 +24,10 @@ export function extractUsages(sf: ts.SourceFile): UsageIndexEntry[] {
   let enclosingKind: string | undefined;
 
   function visit(node: ts.Node) {
+    // Save enclosing context so it restores correctly on recursion unwind
+    const prevSymbol = enclosingSymbol;
+    const prevKind = enclosingKind;
+
     // Track enclosing function/class/method for context
     if (ts.isFunctionDeclaration(node) && node.name) {
       enclosingSymbol = node.name.text;
@@ -91,6 +95,10 @@ export function extractUsages(sf: ts.SourceFile): UsageIndexEntry[] {
     }
 
     ts.forEachChild(node, visit);
+
+    // Restore enclosing context on unwind
+    enclosingSymbol = prevSymbol;
+    enclosingKind = prevKind;
   }
 
   visit(sf);

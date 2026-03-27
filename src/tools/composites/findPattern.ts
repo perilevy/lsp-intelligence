@@ -18,9 +18,10 @@ export const findPattern = defineTool({
     paths: z.array(z.string()).optional().describe('Limit search to specific directories (absolute paths)'),
     max_results: z.number().default(50),
     context_lines: z.number().default(1),
+    include_tests: z.boolean().default(true).describe('Include test/spec files in results'),
   }),
   async handler(params, engine) {
-    const scope = resolveSearchScope(engine.workspaceRoot, params.paths, true);
+    const scope = resolveSearchScope(engine.workspaceRoot, params.paths, params.include_tests);
 
     const { filesScanned, matches, warnings } = runPatternSearch({
       pattern: params.pattern,

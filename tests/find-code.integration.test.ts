@@ -28,10 +28,9 @@ describe('find_code Integration', () => {
     expect(result.plan.retrievers).toContain('structural');
     expect(result.plan.retrievers).not.toContain('behavior');
 
-    // Should find useEffect usage sites, not random declarations
-    if (result.candidates.length > 0) {
-      expect(result.candidates[0].matchedIdentifier ?? result.candidates[0].symbol).toMatch(/useEffect|Effect/i);
-    }
+    // Must find useEffect usage sites — this is the core regression test
+    expect(result.candidates.length).toBeGreaterThan(0);
+    expect(result.candidates[0].matchedIdentifier ?? result.candidates[0].symbol).toMatch(/useEffect|Effect/i);
   });
 
   it('routes "where do we validate permissions" to behavior mode', async () => {

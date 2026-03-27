@@ -78,7 +78,7 @@ Use npm source in `marketplace.json` for version pinning and built-in dependency
   "source": {
     "source": "npm",
     "package": "lsp-intelligence",
-    "version": "0.1.2"
+    "version": "0.2.0"
   }
 }
 ```
@@ -150,7 +150,7 @@ Combine LSP, AST, and Git substrates into high-level operations.
 |------|-------------|
 | `api_guard` | Detect public API contract changes — export diffs, structural classification, consumer impact, semver summary. |
 | `root_cause_trace` | Trace the root cause of a TypeScript error — find the originating declaration change, not just the symptom. |
-| `find_code_by_behavior` | Find implementation entrypoints by natural language behavior description. Hybrid keyword + AST + LSP search. |
+| `find_code` | Unified code search: behavior discovery, identifier/API usage search, and structural queries. Routes automatically based on the query. |
 | `find_pattern` | AST structural search — find code by pattern (e.g. `useEffect($$$)`, `try { $$$ } catch ($E) { $$$ }`). |
 | `inspect_symbol` | Hover + definition + references in one call. Full context about any symbol. |
 | `batch_query` | Look up multiple symbols at once. Saves round-trips when exploring. |
@@ -189,9 +189,9 @@ Post-edit verification.
 │   gather_context, outline                               │
 ├─────────────────────────────────────────────────────────┤
 │ Layer 2: Intelligence Tools              [read-only]      │
-│   api_guard, root_cause_trace, find_code_by_behavior,   │
-│   find_pattern, impact_trace, semantic_diff,            │
-│   inspect_symbol, batch_query, find_test_files          │
+│   api_guard, root_cause_trace, find_code, find_pattern, │
+│   impact_trace, semantic_diff, inspect_symbol,          │
+│   batch_query, find_test_files, explain_error           │
 ├─────────────────────────────────────────────────────────┤
 │ Layer 1: Primitives                     [read-only]      │
 │   find_references, hover, definition, call_hierarchy,   │

@@ -52,6 +52,7 @@ export const findCode = defineTool({
     const ranked = await rankCandidates(merged, { ir, plan, engine, scope });
     const confidence = assessConfidence(ranked, ir, plan);
     const topResults = ranked.slice(0, params.max_results);
+    const lspEnriched = ranked.filter((c) => c.sources.includes('lsp')).length;
 
     const result: FindCodeResult = {
       query: params.query,
@@ -64,7 +65,7 @@ export const findCode = defineTool({
         declarationHits: behavior.length,
         usageHits: identifier.length,
         structuralHits: structural.length,
-        lspEnriched: Math.min(15, topResults.length),
+        lspEnriched,
         elapsedMs: Date.now() - startTime,
         partialResult: false,
       },

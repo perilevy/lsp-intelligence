@@ -41,6 +41,31 @@ describe('Usage Index', () => {
     );
     expect(inConditional).toBeDefined();
   });
+
+  it('does not leak enclosing context across sibling functions', () => {
+    const sf = parseSourceFile(path.join(STANDALONE_ROOT, 'web/src/effects.tsx'));
+    const usages = extractUsages(sf!);
+
+    // useMemo in MemoComponent must NOT carry enclosing from a prior function
+    const memoUsage = usages.find(
+      (u) => u.identifier === 'useMemo' && u.kind === 'call',
+    );
+    expect(memoUsage).toBeDefined();
+    expect(memoUsage!.enclosingSymbol).toBe('MemoComponent');
+
+    // useCallback in CallbackComponent must have correct enclosing
+    const cbUsage = usages.find(
+      (u) => u.identifier === 'useCallback' && u.kind === 'call',
+    );
+    expect(cbUsage).toBeDefined();
+    expect(cbUsage!.enclosingSymbol).toBe('CallbackComponent');
+
+    // NoCleanupComponent's useEffect must not leak from prior component
+    const noCleanup = usages.find(
+      (u) => u.identifier === 'useEffect' && u.enclosingSymbol === 'NoCleanupComponent',
+    );
+    expect(noCleanup).toBeDefined();
+  });
 });
 
 describe('Declaration Index', () => {

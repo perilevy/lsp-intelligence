@@ -54,13 +54,53 @@ describe('Query Parser', () => {
     expect(ir.mode).toBe('structural');
   });
 
-  it('handles forced family', () => {
+  it('handles forced family with full ID', () => {
     const ir = parseQuery('something generic', { forcedFamily: 'auth_permission' });
     expect(ir.familyScores['auth_permission']).toBeGreaterThan(0);
+  });
+
+  it('resolves short family alias to real ID', () => {
+    const ir = parseQuery('something generic', { forcedFamily: 'auth' });
+    expect(ir.familyScores['auth_permission']).toBeGreaterThan(0);
+    expect(ir.familyScores['auth']).toBeUndefined();
+  });
+
+  it('resolves all short family aliases correctly', () => {
+    const aliases: Record<string, string> = {
+      errors: 'error_handling',
+      state: 'state_management',
+      flags: 'feature_flags',
+      retry: 'retry_backoff',
+    };
+    for (const [short, full] of Object.entries(aliases)) {
+      const ir = parseQuery('test', { forcedFamily: short });
+      expect(ir.familyScores[full]).toBeGreaterThan(0);
+      expect(ir.familyScores[short]).toBeUndefined();
+    }
   });
 
   it('handles "without" modifier for negation', () => {
     const ir = parseQuery('useEffect without cleanup');
     expect(ir.structuralPredicates).toContain('no-cleanup');
+  });
+
+  it('does NOT infer returns-function from "returns" alone', () => {
+    const ir = parseQuery('permission guard that returns boolean');
+    expect(ir.structuralPredicates).not.toContain('returns-function');
+  });
+
+  it('does NOT infer hook-callback from "callback" alone', () => {
+    const ir = parseQuery('event callback handler');
+    expect(ir.structuralPredicates).not.toContain('hook-callback');
+  });
+
+  it('infers returns-cleanup from "returns" + "cleanup" combination', () => {
+    const ir = parseQuery('useEffect that returns cleanup');
+    expect(ir.structuralPredicates).toContain('returns-cleanup');
+  });
+
+  it('infers returns-function when hook identifier + returns', () => {
+    const ir = parseQuery('useEffect that returns a function');
+    expect(ir.structuralPredicates).toContain('returns-function');
   });
 });

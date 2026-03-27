@@ -3,6 +3,15 @@ import { BEHAVIOR_FAMILIES } from '../families/behaviorFamilies.js';
 import { buildSnippetFromFile } from '../../analysis/ts/snippets.js';
 
 /**
+ * Prefix-based partial match with minimum length guard.
+ * Prevents false positives like 'permission'.includes('is').
+ */
+function isStrongPartialMatch(a: string, b: string): boolean {
+  if (a.length < 4 || b.length < 4) return false;
+  return a.startsWith(b) || b.startsWith(a);
+}
+
+/**
  * Retrieve declaration-oriented candidates based on behavior family matching.
  * Uses declaration index + family classifier/expansion terms + file/symbol hints.
  * Does NOT use exact identifier matching — that's the identifier retriever's job.
@@ -27,7 +36,7 @@ export function retrieveBehaviorCandidates(
       for (const hint of family.symbolHints) {
         for (const tok of decl.symbolTokens) {
           if (tok === hint) { score += 5; evidence.push(`symbol-hint: ${hint}`); break; }
-          if (tok.includes(hint) || hint.includes(tok)) { score += 2; evidence.push(`symbol-partial: ${hint}~${tok}`); break; }
+          if (isStrongPartialMatch(tok, hint)) { score += 2; evidence.push(`symbol-partial: ${hint}~${tok}`); break; }
         }
       }
       for (const hint of family.fileHints) {
@@ -41,7 +50,7 @@ export function retrieveBehaviorCandidates(
     for (const nlTok of ir.nlTokens) {
       for (const symTok of decl.symbolTokens) {
         if (symTok === nlTok) { score += 4; evidence.push(`nl-match: ${nlTok}`); break; }
-        if (symTok.includes(nlTok) || nlTok.includes(symTok)) { score += 2; evidence.push(`nl-partial: ${nlTok}~${symTok}`); break; }
+        if (isStrongPartialMatch(symTok, nlTok)) { score += 2; evidence.push(`nl-partial: ${nlTok}~${symTok}`); break; }
       }
     }
 
