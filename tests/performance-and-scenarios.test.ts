@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { getEngine, shutdownEngine, fixturePath, getFixtureRoot } from './setup.js';
 import type { LspEngine } from '../src/engine/LspEngine.js';
 import { findPattern } from '../src/tools/composites/findPattern.js';
-import { findCodeByBehavior } from '../src/tools/composites/findCodeByBehavior.js';
+import { findCode } from '../src/tools/composites/findCode.js';
 import { apiGuard } from '../src/tools/composites/apiGuard.js';
 import { rootCauseTrace } from '../src/tools/composites/rootCauseTrace.js';
 
@@ -25,20 +25,20 @@ describe('Performance Budgets', () => {
     expect(result.filesScanned).toBeLessThan(200);
   });
 
-  it('find_code_by_behavior caps enrichment at 15', async () => {
-    const result = await findCodeByBehavior.handler(
+  it('find_code caps enrichment at 15', async () => {
+    const result = await findCode.handler(
       { query: 'validation', max_results: 10 },
       engine,
     ) as any;
-    expect(result.stats.enrichedCandidates).toBeLessThanOrEqual(15);
+    expect(result.stats.lspEnriched).toBeLessThanOrEqual(15);
   });
 
-  it('find_code_by_behavior caps AST files scanned', async () => {
-    const result = await findCodeByBehavior.handler(
+  it('find_code caps AST files scanned', async () => {
+    const result = await findCode.handler(
       { query: 'error handling retry', max_results: 5 },
       engine,
     ) as any;
-    expect(result.stats.astFilesScanned).toBeLessThanOrEqual(120);
+    expect(result.stats.filesIndexed).toBeLessThanOrEqual(120);
   });
 
   it('api_guard returns partialResult flag when capped', async () => {
@@ -89,7 +89,7 @@ describe('Fixture Scenarios', () => {
 
   describe('behavior search scenarios', () => {
     it('finds validation functions in the fixture', async () => {
-      const result = await findCodeByBehavior.handler(
+      const result = await findCode.handler(
         { query: 'validate config', max_results: 5 },
         engine,
       ) as any;
@@ -98,7 +98,7 @@ describe('Fixture Scenarios', () => {
     });
 
     it('finds error handling in the fixture', async () => {
-      const result = await findCodeByBehavior.handler(
+      const result = await findCode.handler(
         { query: 'error handler recovery', max_results: 5 },
         engine,
       ) as any;
@@ -107,7 +107,7 @@ describe('Fixture Scenarios', () => {
     });
 
     it('finds permission/guard functions in the fixture', async () => {
-      const result = await findCodeByBehavior.handler(
+      const result = await findCode.handler(
         { query: 'can user edit', max_results: 5 },
         engine,
       ) as any;

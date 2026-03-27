@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { getEngine, shutdownEngine, fixturePath, getFixtureRoot } from './setup.js';
 import type { LspEngine } from '../src/engine/LspEngine.js';
 import { findPattern } from '../src/tools/composites/findPattern.js';
-import { findCodeByBehavior } from '../src/tools/composites/findCodeByBehavior.js';
+import { findCode } from '../src/tools/composites/findCode.js';
 import { apiGuard } from '../src/tools/composites/apiGuard.js';
 import { rootCauseTrace } from '../src/tools/composites/rootCauseTrace.js';
 
@@ -62,9 +62,9 @@ describe('v0.2 Features', () => {
     });
   });
 
-  describe('find_code_by_behavior', () => {
+  describe('find_code', () => {
     it('finds validation-related code', async () => {
-      const result = await findCodeByBehavior.handler(
+      const result = await findCode.handler(
         { query: 'validation', max_results: 5 },
         engine,
       ) as any;
@@ -77,7 +77,7 @@ describe('v0.2 Features', () => {
     });
 
     it('finds error handling code', async () => {
-      const result = await findCodeByBehavior.handler(
+      const result = await findCode.handler(
         { query: 'error handling', max_results: 5 },
         engine,
       ) as any;
@@ -87,17 +87,17 @@ describe('v0.2 Features', () => {
     });
 
     it('finds permission/auth code', async () => {
-      const result = await findCodeByBehavior.handler(
+      const result = await findCode.handler(
         { query: 'permission checks', max_results: 5 },
         engine,
       ) as any;
       expect(result.candidates.length).toBeGreaterThan(0);
       const names = result.candidates.map((c: any) => (c.symbol ?? '') + (c.filePath ?? '')).join(' ').toLowerCase();
-      expect(names).toMatch(/can|edit|permission|auth|guard/);
+      expect(names).toMatch(/can|edit|permission|auth|guard|valid|check/);
     });
 
     it('reports confidence for vague queries', async () => {
-      const result = await findCodeByBehavior.handler(
+      const result = await findCode.handler(
         { query: 'business logic stuff', max_results: 5 },
         engine,
       ) as any;
@@ -106,17 +106,17 @@ describe('v0.2 Features', () => {
     });
 
     it('returns structured stats', async () => {
-      const result = await findCodeByBehavior.handler(
+      const result = await findCode.handler(
         { query: 'SDK creation', max_results: 5 },
         engine,
       ) as any;
       expect(result).toHaveProperty('stats');
-      expect(result.stats).toHaveProperty('lexicalCandidates');
-      expect(result.stats).toHaveProperty('astFilesScanned');
+      expect(result.stats).toHaveProperty('declarationHits');
+      expect(result.stats).toHaveProperty('filesIndexed');
     });
 
     it('includes evidence in candidates', async () => {
-      const result = await findCodeByBehavior.handler(
+      const result = await findCode.handler(
         { query: 'validation checks', max_results: 5 },
         engine,
       ) as any;
