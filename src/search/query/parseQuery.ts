@@ -1,4 +1,4 @@
-import type { QueryIR, StructuralPredicate, SearchPlan } from '../types.js';
+import type { QueryIR, QueryTraits, StructuralPredicate, SearchPlan } from '../types.js';
 import { scoreFamilies } from '../families/behaviorFamilies.js';
 
 // Short family names (from find_code schema) → real family IDs
@@ -229,6 +229,15 @@ export function parseQuery(
     }
   }
 
+  // --- Traits ---
+  const allLower = raw.toLowerCase();
+  const traits: QueryTraits = {
+    routeLike: /\b(route|endpoint|url|path|api|handler)\b/.test(allLower),
+    configLike: /\b(config|env|flag|toggle|setting|variable|secret)\b/.test(allLower),
+    implementationRoot: /\b(real|actual|root|implementation|where.*(handled|defined|implemented))\b/.test(allLower),
+    testIntent: /\b(test|spec|describe|it\s+should)\b/.test(allLower),
+  };
+
   return {
     raw,
     nlTokens,
@@ -238,6 +247,7 @@ export function parseQuery(
     codeTokens,
     familyScores,
     structuralPredicates,
+    traits,
     mode,
     modeConfidence,
     routingReasons,

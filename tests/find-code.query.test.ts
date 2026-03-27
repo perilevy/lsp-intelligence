@@ -103,4 +103,28 @@ describe('Query Parser', () => {
     const ir = parseQuery('useEffect that returns a function');
     expect(ir.structuralPredicates).toContain('returns-function');
   });
+
+  // --- Trait detection ---
+
+  it('detects route-like trait', () => {
+    const ir = parseQuery('where is the API endpoint defined');
+    expect(ir.traits.routeLike).toBe(true);
+  });
+
+  it('detects config-like trait', () => {
+    const ir = parseQuery('where is the feature flag configured');
+    expect(ir.traits.configLike).toBe(true);
+  });
+
+  it('detects implementation-root trait', () => {
+    const ir = parseQuery('where is this actually implemented');
+    expect(ir.traits.implementationRoot).toBe(true);
+  });
+
+  it('does not false-positive on traits for plain queries', () => {
+    const ir = parseQuery('useEffect cleanup');
+    expect(ir.traits.routeLike).toBe(false);
+    expect(ir.traits.configLike).toBe(false);
+    expect(ir.traits.implementationRoot).toBe(false);
+  });
 });

@@ -14,13 +14,17 @@ export function assessConfidence(
   const top = ranked[0];
   const multiSource = top.sources.length > 1;
   const hasStructural = top.sources.includes('structural');
+  const hasGraph = top.sources.includes('graph');
+  const hasDoc = top.sources.includes('doc');
   const highScore = top.score >= 15;
   const hasOverlap = top.evidence.some((e) => e.includes('overlap'));
 
   if (multiSource && highScore) return 'high';
   if (hasStructural && top.score >= 10) return 'high';
+  if (hasGraph && top.score >= 10) return 'high';
   if (hasOverlap) return 'high';
   if (highScore) return 'medium';
+  if (hasDoc && top.score >= 8) return 'medium';
   if (ir.modeConfidence === 'low') return 'low';
 
   return 'medium';

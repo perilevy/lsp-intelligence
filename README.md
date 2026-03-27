@@ -150,7 +150,7 @@ Combine LSP, AST, and Git substrates into high-level operations.
 |------|-------------|
 | `api_guard` | Detect public API contract changes — export diffs, structural classification, consumer impact, semver summary. |
 | `root_cause_trace` | Trace the root cause of a TypeScript error — find the originating declaration change, not just the symptom. |
-| `find_code` | Unified code search: behavior discovery, identifier/API usage search, and structural queries. Routes automatically based on the query. |
+| `find_code` | Unified code search: behavior discovery, identifier/API usage, structural queries, config/route lookup, and implementation-root discovery. Routes automatically. |
 | `find_pattern` | AST structural search — find code by pattern (e.g. `useEffect($$$)`, `try { $$$ } catch ($E) { $$$ }`). |
 | `inspect_symbol` | Hover + definition + references in one call. Full context about any symbol. |
 | `batch_query` | Look up multiple symbols at once. Saves round-trips when exploring. |
@@ -177,6 +177,18 @@ Post-edit verification.
 | `live_diagnostics` | Re-read a file after editing and check for new type errors. |
 | `find_unused_exports` | Find exported symbols with zero cross-package importers. |
 | `auto_import` | Resolve the correct import path for a symbol name. |
+
+## find_code query classes
+
+`find_code` supports five query classes, routed automatically:
+
+| Class | Example query | What happens |
+|-------|--------------|-------------|
+| **Identifier / API usage** | `useEffect`, `Promise.all` | Usage index → exact call/import sites with enclosing context |
+| **Structural** | `useEffect that returns cleanup conditionally` | Identifier + structural predicates → AST evaluation on located nodes |
+| **Behavior / entrypoint** | `where do we validate permissions` | Fielded BM25 over declarations + JSDoc/comments + family hints |
+| **Config / route / flag** | `where is the feature flag configured` | Config index → JSON/YAML/env/package.json entries |
+| **Implementation root** | `where is this actually implemented` | Graph expansion → wrapper detection → root promotion |
 
 ## Architecture
 

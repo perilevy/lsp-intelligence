@@ -43,4 +43,34 @@ describe('Query Planner', () => {
     const plan = planQuery(ir);
     expect(plan.retrievers.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('adds doc retriever for behavior queries', () => {
+    const ir = parseQuery('where do we validate permissions');
+    const plan = planQuery(ir);
+    expect(plan.retrievers).toContain('doc');
+  });
+
+  it('adds config retriever for route-like queries', () => {
+    const ir = parseQuery('where is the API endpoint defined');
+    const plan = planQuery(ir);
+    expect(plan.retrievers).toContain('config');
+  });
+
+  it('adds config retriever for config-like queries', () => {
+    const ir = parseQuery('where is the feature flag configured');
+    const plan = planQuery(ir);
+    expect(plan.retrievers).toContain('config');
+  });
+
+  it('enables graph expansion for implementation-root queries', () => {
+    const ir = parseQuery('where is this actually implemented');
+    const plan = planQuery(ir);
+    expect(plan.expandGraph).toBe(true);
+  });
+
+  it('does not enable graph expansion for plain queries', () => {
+    const ir = parseQuery('useEffect cleanup');
+    const plan = planQuery(ir);
+    expect(plan.expandGraph).toBe(false);
+  });
 });

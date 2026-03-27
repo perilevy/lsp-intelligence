@@ -1,8 +1,11 @@
 import * as fs from 'fs';
-import type { SearchScope, WorkspaceIndex, IndexedFile, DeclarationIndexEntry, UsageIndexEntry } from '../types.js';
+import type { SearchScope, WorkspaceIndex, IndexedFile, DeclarationIndexEntry, UsageIndexEntry, DocIndexEntry, ConfigIndexEntry } from '../types.js';
 import { collectScopeFiles } from '../../resolve/searchScope.js';
 import { indexFileDeclarations } from './declarationIndex.js';
 import { indexFileUsages } from './usageIndex.js';
+import { indexFileDocs } from './docIndex.js';
+import { indexConfigFiles } from './configIndex.js';
+import { parseSourceFile } from '../../analysis/ts/parseSourceFile.js';
 
 // Per-workspace cache with per-file mtime invalidation
 let cachedIndex: WorkspaceIndex | null = null;
@@ -36,7 +39,8 @@ export function getWorkspaceIndex(
         // File is new or changed — re-index
         const declarations = indexFileDeclarations(filePath);
         const usages = indexFileUsages(filePath);
-        cachedIndex.files.set(filePath, { filePath, mtimeMs: mtime, declarations, usages });
+        const docs = indexFileDocsForFile(filePath);
+        cachedIndex.files.set(filePath, { filePath, mtimeMs: mtime, declarations, usages, docs });
         changed = true;
       }
     } catch {
@@ -59,7 +63,7 @@ export function getWorkspaceIndex(
 
   // Rebuild flat arrays if anything changed
   if (changed) {
-    rebuildFlatArrays(cachedIndex);
+    rebuildFlatArrays(cachedIndex, scope);
   }
 
   return cachedIndex;
@@ -75,7 +79,8 @@ function buildFreshIndex(scope: SearchScope): WorkspaceIndex {
       const mtime = fs.statSync(filePath).mtimeMs;
       const declarations = indexFileDeclarations(filePath);
       const usages = indexFileUsages(filePath);
-      files.set(filePath, { filePath, mtimeMs: mtime, declarations, usages });
+      const docs = indexFileDocsForFile(filePath);
+      files.set(filePath, { filePath, mtimeMs: mtime, declarations, usages, docs });
     } catch {
       // Skip files that can't be read/parsed
     }
@@ -87,22 +92,34 @@ function buildFreshIndex(scope: SearchScope): WorkspaceIndex {
     files,
     declarations: [],
     usages: [],
+    docs: [],
+    configs: [],
   };
 
-  rebuildFlatArrays(index);
+  rebuildFlatArrays(index, scope);
   return index;
 }
 
-function rebuildFlatArrays(index: WorkspaceIndex): void {
+function rebuildFlatArrays(index: WorkspaceIndex, scope: SearchScope): void {
   const declarations: DeclarationIndexEntry[] = [];
   const usages: UsageIndexEntry[] = [];
+  const docs: DocIndexEntry[] = [];
 
   for (const file of index.files.values()) {
     declarations.push(...file.declarations);
     usages.push(...file.usages);
+    docs.push(...file.docs);
   }
 
   index.declarations = declarations;
   index.usages = usages;
+  index.docs = docs;
+  index.configs = indexConfigFiles(scope);
   index.builtAt = Date.now();
+}
+
+function indexFileDocsForFile(filePath: string): DocIndexEntry[] {
+  const sf = parseSourceFile(filePath);
+  if (!sf) return [];
+  return indexFileDocs(sf);
 }

@@ -14,6 +14,13 @@ export type StructuralPredicate =
   | 'inside-hook'
   | 'hook-callback';
 
+export interface QueryTraits {
+  routeLike: boolean;
+  configLike: boolean;
+  implementationRoot: boolean;
+  testIntent: boolean;
+}
+
 export interface QueryIR {
   raw: string;
 
@@ -35,6 +42,9 @@ export interface QueryIR {
   /** Structural predicates inferred from the query */
   structuralPredicates: StructuralPredicate[];
 
+  /** Semantic traits inferred from the query */
+  traits: QueryTraits;
+
   /** Routing mode */
   mode: 'behavior' | 'identifier' | 'structural' | 'mixed';
   modeConfidence: 'high' | 'medium' | 'low';
@@ -47,8 +57,9 @@ export interface QueryIR {
 
 export interface SearchPlan {
   mode: 'behavior' | 'identifier' | 'structural' | 'mixed';
-  retrievers: Array<'behavior' | 'identifier' | 'structural'>;
+  retrievers: Array<'behavior' | 'identifier' | 'structural' | 'doc' | 'config'>;
   reasons: string[];
+  expandGraph: boolean;
 }
 
 // ============================================================================
@@ -66,7 +77,7 @@ export interface SearchScope {
 // ============================================================================
 
 export interface CodeCandidate {
-  candidateType: 'declaration' | 'usage' | 'pattern';
+  candidateType: 'declaration' | 'usage' | 'pattern' | 'doc' | 'config';
 
   filePath: string;
   line: number;
@@ -77,7 +88,7 @@ export interface CodeCandidate {
   enclosingKind?: string;
   matchedIdentifier?: string;
 
-  kind?: 'function' | 'class' | 'method' | 'variable' | 'component' | 'file' | 'usage' | 'pattern';
+  kind?: 'function' | 'class' | 'method' | 'variable' | 'component' | 'file' | 'usage' | 'pattern' | 'config' | 'doc';
   signature?: string;
   snippet?: string;
   context?: string;
@@ -85,7 +96,7 @@ export interface CodeCandidate {
   score: number;
   confidence?: 'high' | 'medium' | 'low';
   evidence: string[];
-  sources: Array<'behavior' | 'identifier' | 'structural' | 'lsp'>;
+  sources: Array<'behavior' | 'identifier' | 'structural' | 'doc' | 'config' | 'lsp' | 'graph'>;
 }
 
 /**
@@ -123,11 +134,30 @@ export interface UsageIndexEntry {
   pathTokens: string[];
 }
 
+export interface DocIndexEntry {
+  filePath: string;
+  line: number;
+  kind: 'jsdoc' | 'comment' | 'test-title';
+  text: string;
+  tokens: string[];
+  attachedSymbol?: string;
+}
+
+export interface ConfigIndexEntry {
+  filePath: string;
+  line: number;
+  kind: 'json' | 'yaml' | 'env' | 'route' | 'package' | 'config';
+  keyPath?: string[];
+  text: string;
+  tokens: string[];
+}
+
 export interface IndexedFile {
   filePath: string;
   mtimeMs: number;
   declarations: DeclarationIndexEntry[];
   usages: UsageIndexEntry[];
+  docs: DocIndexEntry[];
 }
 
 export interface WorkspaceIndex {
@@ -136,6 +166,8 @@ export interface WorkspaceIndex {
   files: Map<string, IndexedFile>;
   declarations: DeclarationIndexEntry[];
   usages: UsageIndexEntry[];
+  docs: DocIndexEntry[];
+  configs: ConfigIndexEntry[];
 }
 
 // ============================================================================

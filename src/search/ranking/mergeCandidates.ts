@@ -9,6 +9,8 @@ export function mergeCandidates(inputs: {
   behavior: CodeCandidate[];
   identifier: CodeCandidate[];
   structural: CodeCandidate[];
+  doc: CodeCandidate[];
+  config: CodeCandidate[];
 }): CodeCandidate[] {
   const merged = new Map<string, CodeCandidate>();
 
@@ -43,6 +45,29 @@ export function mergeCandidates(inputs: {
         if (!existing.sources.includes(s)) existing.sources.push(s);
       }
     } else {
+      merged.set(key, { ...c });
+    }
+  }
+
+  // Merge doc candidates — boost on overlap with behavior/identifier
+  for (const c of inputs.doc) {
+    const key = candidateKey(c);
+    const existing = merged.get(key);
+    if (existing) {
+      existing.score += Math.round(c.score * 0.5) + 2; // lighter boost for doc overlap
+      existing.evidence.push(...c.evidence, 'doc-overlap');
+      for (const s of c.sources) {
+        if (!existing.sources.includes(s)) existing.sources.push(s);
+      }
+    } else {
+      merged.set(key, { ...c });
+    }
+  }
+
+  // Add config candidates (typically no overlap with code candidates)
+  for (const c of inputs.config) {
+    const key = candidateKey(c);
+    if (!merged.has(key)) {
       merged.set(key, { ...c });
     }
   }
