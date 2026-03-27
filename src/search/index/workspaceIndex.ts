@@ -7,12 +7,16 @@ import { indexFileDocs } from './docIndex.js';
 import { indexConfigFiles } from './configIndex.js';
 import { parseSourceFile } from '../../analysis/ts/parseSourceFile.js';
 
+// Bump this when discovery/exclusion rules change to invalidate stale caches.
+const INDEX_VERSION = 2;
+
 // Per-workspace cache with per-file mtime invalidation
-let cachedIndex: WorkspaceIndex | null = null;
+let cachedIndex: (WorkspaceIndex & { _version?: number }) | null = null;
 
 /**
  * Get or build a workspace index for the given scope.
  * Uses per-file mtime to invalidate stale entries — no TTL.
+ * Also invalidates when INDEX_VERSION changes (e.g. new exclusion rules).
  */
 export function getWorkspaceIndex(
   scope: SearchScope,
@@ -20,9 +24,9 @@ export function getWorkspaceIndex(
 ): WorkspaceIndex {
   const root = scope.roots[0] ?? '';
 
-  // Full refresh if root changed or forced
-  if (!cachedIndex || cachedIndex.root !== root || opts?.forceRefresh) {
-    cachedIndex = buildFreshIndex(scope);
+  // Full refresh if root changed, forced, or index version changed
+  if (!cachedIndex || cachedIndex.root !== root || cachedIndex._version !== INDEX_VERSION || opts?.forceRefresh) {
+    cachedIndex = { ...buildFreshIndex(scope), _version: INDEX_VERSION };
     return cachedIndex;
   }
 
