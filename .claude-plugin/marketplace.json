@@ -7,8 +7,8 @@
     {
       "name": "lsp-intelligence",
       "source": "./",
-      "description": "Type-aware code intelligence — impact analysis, semantic diff, and context building via LSP",
-      "version": "0.1.2"
+      "description": "Type-aware code intelligence — unified code search, impact analysis, semantic diff, and context building via LSP",
+      "version": "0.2.0"
     }
   ]
 }

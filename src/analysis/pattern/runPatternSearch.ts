@@ -11,9 +11,9 @@ const LANG_MAP: Record<string, Lang> = {
 };
 
 const EXT_MAP: Record<string, string[]> = {
-  typescript: ['.ts'],
+  typescript: ['.ts', '.mjs', '.cjs'],
   tsx: ['.tsx', '.ts'],
-  javascript: ['.js'],
+  javascript: ['.js', '.jsx', '.mjs', '.cjs'],
 };
 
 /**

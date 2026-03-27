@@ -2,8 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { SearchScope } from '../search/types.js';
 import { SKIP_DIRS } from '../engine/types.js';
-
-const TEST_PATTERN = /\.(spec|test|stories)\.(ts|tsx|js|jsx)$/;
+import { isCodeFile, isTestFile } from '../search/fileKinds.js';
 
 /**
  * Resolve a search scope from user input.
@@ -25,7 +24,7 @@ export function resolveSearchScope(
 }
 
 /**
- * Collect all TypeScript/TSX files within the search scope.
+ * Collect all code files (TS/TSX/JS/JSX/MJS/CJS) within the search scope.
  * Respects includeTests and SKIP_DIRS.
  */
 export function collectScopeFiles(scope: SearchScope, maxFiles: number = 2000): string[] {
@@ -54,8 +53,8 @@ function walkDir(
       const stat = fs.statSync(full);
       if (stat.isDirectory()) {
         walkDir(full, files, includeTests, maxFiles, depth + 1);
-      } else if ((entry.endsWith('.ts') || entry.endsWith('.tsx')) && !entry.endsWith('.d.ts')) {
-        if (!includeTests && TEST_PATTERN.test(entry)) continue;
+      } else if (isCodeFile(full)) {
+        if (!includeTests && isTestFile(full)) continue;
         files.push(full);
       }
     }

@@ -2,11 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { SearchScope } from '../../search/types.js';
 import { SKIP_DIRS } from '../../engine/types.js';
-
-const TEST_PATTERN = /\.(spec|test|stories)\.(ts|tsx|js|jsx)$/;
+import { isTestFile } from '../../search/fileKinds.js';
 
 /**
- * Collect files matching a language within a search scope.
+ * Collect files matching a set of extensions within a search scope.
  */
 export function collectSearchFiles(
   scope: SearchScope,
@@ -40,7 +39,7 @@ function walkDir(
       if (stat.isDirectory()) {
         walkDir(full, files, extensions, includeTests, maxFiles, depth + 1);
       } else if (extensions.some((e) => entry.endsWith(e)) && !entry.endsWith('.d.ts')) {
-        if (!includeTests && TEST_PATTERN.test(entry)) continue;
+        if (!includeTests && isTestFile(full)) continue;
         files.push(full);
       }
     }
