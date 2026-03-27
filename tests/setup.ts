@@ -17,8 +17,8 @@ export async function getEngine(): Promise<LspEngine> {
   if (engine) return engine;
   engine = new LspEngine(FIXTURE_ROOT);
   await engine.initialize();
-  // Extra wait for symbol index to be fully ready
-  await new Promise((r) => setTimeout(r, 5000));
+  // Extra wait for symbol index to be fully ready (more packages need more time)
+  await new Promise((r) => setTimeout(r, 8000));
   return engine;
 }
 
