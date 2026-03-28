@@ -368,16 +368,39 @@ export class LspEngine {
   }
 
   async shutdown(): Promise<void> {
-    // Suppress stream write errors during teardown (TSServer may write after dispose)
-    this.process?.stdin?.on('error', () => {});
-    this.process?.stdout?.on('error', () => {});
     if (this.connection) {
       try {
         await this.connection.sendRequest('shutdown');
         this.connection.sendNotification('exit');
       } catch {}
-      this.connection.dispose();
     }
-    this.process?.kill();
+
+    // Wait for the process to exit gracefully after receiving 'exit' notification.
+    // If it doesn't exit within 3s, force-kill.
+    if (this.process) {
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          this.process?.kill();
+          resolve();
+        }, 3000);
+
+        this.process!.on('exit', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+
+        // If process already exited, resolve immediately
+        if (this.process!.exitCode !== null) {
+          clearTimeout(timeout);
+          resolve();
+        }
+      });
+    }
+
+    // Dispose connection after process is gone — no more writes possible
+    if (this.connection) {
+      this.connection.dispose();
+      this.connection = null;
+    }
   }
 }
