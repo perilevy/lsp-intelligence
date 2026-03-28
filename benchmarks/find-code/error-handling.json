@@ -1,0 +1,13 @@
+{
+  "id": "error-handling",
+  "category": "behavior",
+  "query": "error handling recovery",
+  "fixture": "monorepo",
+  "expected": {
+    "mode": "behavior",
+    "retrievers": ["behavior", "doc"],
+    "topFiles": ["errorBoundary.ts"],
+    "confidenceFloor": "low"
+  },
+  "notes": "Behavior query with error_handling family — should find error boundary code."
+}

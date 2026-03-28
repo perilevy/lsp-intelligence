@@ -1,0 +1,13 @@
+{
+  "id": "await-inside-loop",
+  "category": "structural",
+  "query": "await inside loop",
+  "fixture": "monorepo",
+  "expected": {
+    "mode": "structural",
+    "retrievers": ["structural"],
+    "topFiles": ["structural.ts"],
+    "confidenceFloor": "medium"
+  },
+  "notes": "Statement-level structural query — requires statementLocator + hasAwaitInLoop predicate."
+}
