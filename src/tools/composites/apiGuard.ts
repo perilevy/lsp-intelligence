@@ -11,7 +11,8 @@ import { getMergeBase } from '../../git/getMergeBase.js';
 import { getChangedFiles } from '../../git/getChangedFiles.js';
 import { getBaseFileContent } from '../../git/getBaseFileContent.js';
 import type { Location } from 'vscode-languageserver-protocol';
-import { LspError, LspErrorCode, DEFAULT_TIMEOUTS, SKIP_DIRS } from '../../engine/types.js';
+import { LspError, LspErrorCode, DEFAULT_TIMEOUTS } from '../../engine/types.js';
+import { collectScopeFiles } from '../../resolve/searchScope.js';
 
 // --- Structured output types ---
 
@@ -50,26 +51,7 @@ interface ApiGuardResult {
   warnings: string[];
 }
 
-// --- Helper: collect all TS files under a dir ---
-
-function collectTsFiles(dir: string, max: number): string[] {
-  const files: string[] = [];
-  const walk = (d: string, depth: number) => {
-    if (depth > 6 || files.length >= max) return;
-    try {
-      for (const entry of fs.readdirSync(d)) {
-        if (SKIP_DIRS.has(entry)) continue;
-        const full = path.join(d, entry);
-        if (fs.statSync(full).isDirectory()) walk(full, depth + 1);
-        else if ((entry.endsWith('.ts') || entry.endsWith('.tsx')) && !entry.endsWith('.d.ts')) {
-          files.push(full);
-        }
-      }
-    } catch {}
-  };
-  walk(dir, 0);
-  return files;
-}
+// File collection uses shared searchScope (supports JS/TS/JSX/MJS/CJS)
 
 export const apiGuard = defineTool({
   name: 'api_guard',
@@ -99,7 +81,7 @@ export const apiGuard = defineTool({
     } else if (params.scope === 'changed' && base) {
       scopeFiles = getChangedFiles(engine.workspaceRoot, base);
     } else {
-      scopeFiles = collectTsFiles(engine.workspaceRoot, 500);
+      scopeFiles = collectScopeFiles({ roots: [engine.workspaceRoot], includeTests: false }, 500);
     }
 
     if (scopeFiles.length === 0) {
