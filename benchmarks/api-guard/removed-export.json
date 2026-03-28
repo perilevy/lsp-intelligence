@@ -1,0 +1,15 @@
+{
+  "id": "removed-export",
+  "category": "breaking",
+  "description": "An exported function is removed from a package's public API",
+  "fixture": "monorepo",
+  "input": {
+    "scope": "changed"
+  },
+  "expected": {
+    "risk": "high",
+    "semver": "major",
+    "explanation_contains": ["removed", "export", "breaking"]
+  },
+  "notes": "Removing a public export is always a major/breaking change."
+}

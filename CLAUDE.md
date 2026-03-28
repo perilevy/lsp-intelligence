@@ -1,66 +1,75 @@
 # LSP Intelligence — Agent Instructions
 
-You have access to LSP-powered code intelligence tools. Use them instead of grep/read for code understanding tasks.
+Local code intelligence for real engineering workflows. **Find** code, **explain** failures, **guard** API contracts.
 
-> **Note:** The first query in a session takes ~10s while the TypeScript engine warms up (scales with repo size). Subsequent queries are 100-300ms. This is normal — don't retry or report an error during warmup.
+> **Note:** The first query in a session takes ~10s while the TypeScript engine warms up. Subsequent queries are 100-300ms. This is normal.
+
+## Primary tools
+
+| Workflow | Tool | Skill |
+|----------|------|-------|
+| Find code by intent | `find_code` | `/find` |
+| Find structural patterns | `find_pattern` | — |
+| Trace root cause of an error | `root_cause_trace` | `/why` |
+| Check API contract changes | `api_guard` | `/api-check` |
+| Full pre-merge verification | — | `/verify` |
 
 ## When to use LSP tools
 
 | You want to... | Instead of... | Use |
 |----------------|---------------|-----|
-| Find all usages of a function/type | `grep "symbolName"` | `find_references` |
-| Jump to where something is defined | Reading imports, grepping | `goto_definition` |
-| Understand a type or function signature | Reading the source file | `hover` |
+| Find where an API is used | `grep "symbolName"` | `find_code` or `find_references` |
+| Find implementations by concept | Multiple greps | `find_code` (auto-routes to behavior search) |
+| Find structural patterns | Manual code reading | `find_code` or `find_pattern` |
+| Find config/route/flag definitions | Grepping JSON/YAML | `find_code` with config focus |
+| Jump to a definition | Reading imports | `goto_definition` |
+| Understand a type signature | Reading the source file | `hover` |
 | See what a file contains | `read` on the whole file | `outline` |
-| Know what breaks if you change something | Multiple greps + manual tracing | `impact_trace` |
+| Know what breaks if you change something | Manual tracing | `impact_trace` |
 | Prepare context for a coding task | Reading 5-10 files | `gather_context` |
 | Check for type errors after editing | Running `tsc` | `live_diagnostics` |
-| Find which tests to update | Grepping for test files | `find_test_files` |
-| Understand a TypeScript error | Reading error + source | `explain_error` |
-| Get the right import path | Guessing from directory structure | `auto_import` |
-| Look up multiple symbols at once | Multiple separate queries | `batch_query` |
+| Understand a TypeScript error | Reading error + source | `explain_error` / `/why` |
 | Review what you changed semantically | `git diff` | `semantic_diff` |
 
 ## When to still use grep
 
-- Searching for string literals, comments, or config values
-- Searching non-TypeScript files (markdown, JSON, YAML)
-- Simple text pattern matching where semantic understanding isn't needed
+- Searching for string literals in comments or logs
+- Searching non-code files where LSP has no coverage
+- Simple text matching where code-aware ranking isn't needed
 
 ## Workflow patterns
 
 ### Before modifying code
-
-1. `outline` on the file — understand structure without reading everything
-2. `impact_trace` on the symbol you're changing — know the blast radius
-3. `gather_context` with the affected symbols — get only relevant code
+1. `outline` — understand structure without reading everything
+2. `impact_trace` — know the blast radius
+3. `gather_context` — get only relevant code, token-budgeted
 4. `find_test_files` — know which tests to update
 
 ### While implementing
-
-- `hover` to check types before writing code
+- `hover` to check types before writing
 - `auto_import` to get import paths right
-- `goto_definition` to navigate to source when you need implementation details
+- `goto_definition` to navigate to source
 - `find_references` to verify you're not missing usages
 
 ### After editing
-
-- `live_diagnostics` on every file you changed — catch type errors immediately
-- If errors: `explain_error` for actionable fix suggestions
-- `semantic_diff` before committing — verify your changes make sense
-
-## Automatic post-edit behavior
-
-After every Edit/Write on a TypeScript file, you will be prompted to:
-1. Run `live_diagnostics` on the edited file
-2. If errors found, run `explain_error` for fix suggestions
-3. If the file has exports and the user is doing cross-package work, consider `api_guard`
-4. If the file is clean, say nothing — silence means success
-
-This is automatic via the PostToolUse hook. You don't need to remember to check.
+- `live_diagnostics` on every file you changed
+- If errors: `explain_error` or `/why` for root cause
+- `semantic_diff` before committing
+- `api_guard` or `/api-check` if exports changed
 
 ## Symbol-name input
 
-All tools accept symbol names directly: `{ "symbol": "UserService" }`. You don't need to figure out the file path and line number first. Use this whenever possible — it's faster and less error-prone than position-based queries.
+All tools accept symbol names directly: `{ "symbol": "UserService" }`. You don't need file paths and line numbers. Only fall back to position-based input when the symbol name is ambiguous across packages.
 
-Only fall back to `{ "file_path", "line", "column" }` when the symbol name is ambiguous (multiple symbols with the same name across packages).
+## Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `/find <query>` | Guided code search with follow-up actions |
+| `/why <file:line>` | Root cause trace with evidence chain |
+| `/api-check` | API contract guard with semver verdict |
+| `/verify` | Full pre-merge: types + API + test coverage |
+| `/check <files>` | Type check with error explanations |
+| `/impact <symbol>` | Transitive usage trace |
+| `/context <symbols>` | Token-budgeted context extraction |
+| `/diff` | Semantic diff with blast radius |

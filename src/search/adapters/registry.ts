@@ -1,10 +1,13 @@
 import type { SearchAdapter } from './types.js';
 import type { QueryIR, SearchRecipe } from '../types.js';
 import { reactAdapter } from './react.js';
+import { httpAdapter } from './http.js';
+import { configAdapter } from './config.js';
 
 const ADAPTERS: SearchAdapter[] = [
   reactAdapter,
-  // Future: httpAdapter, configAdapter, validationAdapter
+  httpAdapter,
+  configAdapter,
 ];
 
 /**

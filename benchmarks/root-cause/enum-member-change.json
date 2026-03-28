@@ -1,0 +1,15 @@
+{
+  "id": "enum-member-change",
+  "category": "enum-change",
+  "description": "An enum member is renamed or removed, causing switch/comparison failures downstream",
+  "fixture": "monorepo",
+  "input": {
+    "symbol": "ItemStatus"
+  },
+  "expected": {
+    "topCandidateFile": "packages/types/src/index.ts",
+    "explanation_contains": ["enum", "member"],
+    "confidence_floor": "medium"
+  },
+  "notes": "Enum member changes are hard to trace because the error appears at the comparison site, not the definition."
+}

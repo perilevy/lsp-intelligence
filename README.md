@@ -1,10 +1,10 @@
 # lsp-intelligence
 
-Type-aware code intelligence for AI agents — impact analysis, semantic diff, and context building via LSP.
+Local code intelligence for real engineering workflows.
 
-**28 MCP tools** across 5 layers — from basic navigation to "what breaks if I change this?" in one call.
+**Find** implementations, API usage, structural patterns, configs, and routes. **Explain** why something broke. **Guard** the API contract before merging.
 
-Currently supports **TypeScript and JavaScript** projects. The architecture supports other LSP servers — additional language support is planned.
+29 MCP tools across 5 layers. Supports **TypeScript and JavaScript** (TS, TSX, JS, JSX, MJS, CJS). Local-only — no paid API, no external calls.
 
 ## Why this exists
 
@@ -237,7 +237,7 @@ Requires **Node.js 20+**.
 
 ### Option 1: Claude Code plugin (recommended)
 
-Installs the MCP server, hooks, and skills (`/impact`, `/context`, `/check`) as a single package.
+Installs the MCP server, hooks, and skills (`/find`, `/why`, `/api-check`, `/verify`, `/check`, `/impact`, `/context`, `/diff`) as a single package.
 
 ```bash
 claude plugin add perilevy/lsp-intelligence
@@ -297,18 +297,29 @@ Then in `.mcp.json`:
 git clone https://github.com/perilevy/lsp-intelligence.git
 cd lsp-intelligence
 yarn install
-yarn build       # compile TypeScript → dist/
+yarn build       # clean build (rm -rf dist && tsc)
 yarn test        # vitest
 yarn typecheck   # TypeScript strict mode — no emit
+yarn bench       # search quality benchmarks
 ```
 
 ### Testing
 
-Tests verify cross-package reference resolution, symbol-name lookup, type alias tracing, impact trace traversal, context building, and output formatting — all against a self-contained 3-package fixture monorepo at `test-fixtures/monorepo/`. No external dependencies needed.
+Tests verify cross-package reference resolution, symbol-name lookup, type alias tracing, impact trace traversal, search quality, context building, and output formatting — all against self-contained fixture repos at `test-fixtures/`. No external dependencies needed.
+
+### Benchmarks
+
+`benchmarks/` contains reproducible quality cases for `find_code`, `root_cause_trace`, and `api_guard`. Every serious real-world failure should become a benchmark case.
+
+## What this is not
+
+- **Not a universal semantic search engine.** Strong on code structure, API usage, configs, and known patterns. Does not understand arbitrary business logic.
+- **Not a replacement for full-text search.** Use grep for literal string matching. `find_code` uses text patterns internally but optimizes for code-aware ranking.
+- **Not an AI model.** All intelligence is local: AST analysis, LSP queries, fielded text ranking, adapter recipes. No paid API calls, no external services.
 
 ## Dependencies
 
-All dependencies are installed automatically. Under the hood: [`typescript-language-server`](https://github.com/typescript-language-server/typescript-language-server) for LSP, [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) for MCP, and supporting libraries from Microsoft. Uses your project's own TypeScript version.
+All dependencies are installed automatically. Under the hood: [`typescript-language-server`](https://github.com/typescript-language-server/typescript-language-server) for LSP, [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk) for MCP, [`@ast-grep/napi`](https://github.com/ast-grep/ast-grep) for structural patterns. Uses your project's own TypeScript version.
 
 ## License
 
