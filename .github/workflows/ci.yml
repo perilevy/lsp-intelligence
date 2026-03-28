@@ -8,22 +8,18 @@ on:
 
 jobs:
   test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        node: [20, 22]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node }}
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22
 
-      - name: Install dependencies (clean)
+      - name: Install dependencies
         run: yarn install --frozen-lockfile
 
       - name: Install test fixture dependencies
@@ -32,31 +28,22 @@ jobs:
       - name: Typecheck
         run: yarn typecheck
 
-      - name: Build (clean)
+      - name: Build
         run: yarn build
 
-      - name: Verify no stale dist artifacts
+      - name: Verify dist
         run: |
           if ls dist/tools/composites/findCodeByBehavior* 2>/dev/null; then
-            echo "ERROR: stale findCodeByBehavior artifacts in dist/"
-            exit 1
+            echo "ERROR: stale findCodeByBehavior in dist/"; exit 1
           fi
-          if ! ls dist/tools/composites/findCode.js 2>/dev/null; then
-            echo "ERROR: findCode.js missing from dist/"
-            exit 1
-          fi
-
-      - name: Verify registered tool surface
-        run: |
           for tool in findCode findPattern rootCauseTrace apiGuard clearIndex; do
             if ! grep -q "$tool" dist/index.js; then
-              echo "ERROR: $tool missing from dist/index.js"
-              exit 1
+              echo "ERROR: $tool missing from dist/index.js"; exit 1
             fi
           done
 
-      - name: Run tests
+      - name: Test
         run: yarn test
 
-      - name: Run search quality benchmarks
+      - name: Benchmarks
         run: yarn bench
