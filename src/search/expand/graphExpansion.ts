@@ -5,6 +5,18 @@ import { parseSourceFile } from '../../analysis/ts/parseSourceFile.js';
 import { absoluteCandidateKey, lspLocationToKey } from '../ranking/candidateIdentity.js';
 import { buildSnippetFromFile } from '../../analysis/ts/snippets.js';
 
+/** Builtins and framework symbols that should never be promoted as implementation roots. */
+const BUILTIN_DENYLIST = new Set([
+  'useState', 'useEffect', 'useMemo', 'useCallback', 'useRef', 'useContext',
+  'useReducer', 'useLayoutEffect', 'useImperativeHandle', 'useDebugValue',
+  'fetch', 'console', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval',
+  'Promise', 'JSON', 'Math', 'Object', 'Array', 'Map', 'Set', 'Date', 'Error',
+  'require', 'import', 'exports', 'module',
+  'document', 'window', 'process', 'global', 'globalThis',
+  'addEventListener', 'removeEventListener', 'dispatchEvent',
+  'createElement', 'createContext', 'createRef', 'forwardRef', 'memo', 'lazy',
+]);
+
 export interface GraphExpansionResult {
   promoted: Map<string, { scoreDelta: number; evidence: string[] }>;
   derived: CodeCandidate[];
@@ -37,6 +49,10 @@ export async function expandToImplementationRoots(
       const wrapperInfo = detectWrapper(absPath, candidate.line);
       if (!wrapperInfo) continue;
 
+      // Skip if the call target is a builtin/framework symbol — not a real root
+      const leafTarget = wrapperInfo.callTarget.split('.').pop() ?? wrapperInfo.callTarget;
+      if (BUILTIN_DENYLIST.has(leafTarget)) continue;
+
       // Demote wrapper
       const wrapperKey = absoluteCandidateKey(candidate);
       promoted.set(wrapperKey, {
@@ -48,6 +64,12 @@ export async function expandToImplementationRoots(
       try {
         const loc = await engine.resolveSymbol(wrapperInfo.callTarget);
         if (loc) {
+          // Only promote if the resolved location is inside the workspace (project-local)
+          const resolvedPath = loc.uri.startsWith('file://')
+            ? decodeURIComponent(loc.uri.replace(/^file:\/\//, ''))
+            : loc.uri;
+          if (!resolvedPath.startsWith(engine.workspaceRoot)) continue;
+
           const derivedKey = lspLocationToKey(loc.uri, loc.position.line, engine.workspaceRoot, wrapperInfo.callTarget);
 
           if (!promoted.has(derivedKey)) {

@@ -52,10 +52,10 @@ function collectConfigFiles(dir: string, files: string[], maxFiles: number, dept
   if (depth > 4 || files.length >= maxFiles) return;
   try {
     for (const entry of fs.readdirSync(dir)) {
-      if (shouldSkipDir(entry)) continue;
       const full = path.join(dir, entry);
       const stat = fs.statSync(full);
       if (stat.isDirectory()) {
+        if (shouldSkipDir(entry)) continue;
         collectConfigFiles(full, files, maxFiles, depth + 1);
       } else if (
         CONFIG_FILENAMES.includes(entry) ||
