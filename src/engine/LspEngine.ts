@@ -368,6 +368,9 @@ export class LspEngine {
   }
 
   async shutdown(): Promise<void> {
+    // Suppress stream write errors during teardown (TSServer may write after dispose)
+    this.process?.stdin?.on('error', () => {});
+    this.process?.stdout?.on('error', () => {});
     if (this.connection) {
       try {
         await this.connection.sendRequest('shutdown');
