@@ -1,18 +1,20 @@
 import type { QueryIR, SearchScope, WorkspaceIndex, CodeCandidate } from '../types.js';
+import type { EffectiveSearchSpec } from '../query/compileEffectiveSearchSpec.js';
 import { scoreFieldedQuery, type FieldedDocument } from '../ranking/fieldedTextRanker.js';
 import { buildSnippetFromFile } from '../../analysis/ts/snippets.js';
 
 /**
  * Retrieve candidates from the doc/narrative index.
- * Bridges the gap between user wording and code naming by searching
- * JSDoc, comments, and test titles with fielded BM25 scoring.
+ * Uses the compiled spec's behaviorTerms for BM25 scoring.
  */
 export function retrieveDocCandidates(
   ir: QueryIR,
   scope: SearchScope,
   index: WorkspaceIndex,
+  spec?: EffectiveSearchSpec,
 ): CodeCandidate[] {
-  if (ir.nlTokens.length === 0 && ir.phrases.length === 0) return [];
+  const terms = spec?.behaviorTerms ?? [...ir.nlTokens, ...ir.codeTokens];
+  if (terms.length === 0 && ir.phrases.length === 0) return [];
   if (index.docs.length === 0) return [];
 
   // Build fielded documents from doc entries
@@ -26,7 +28,7 @@ export function retrieveDocCandidates(
     },
   }));
 
-  const queryTokens = [...ir.nlTokens, ...ir.codeTokens];
+  const queryTokens = terms;
   const scored = scoreFieldedQuery(queryTokens, docs, { docs: 6, symbol: 4 }, 50);
 
   const candidates: CodeCandidate[] = [];

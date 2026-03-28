@@ -1,17 +1,18 @@
 import type { QueryIR, SearchScope, WorkspaceIndex, CodeCandidate } from '../types.js';
+import type { EffectiveSearchSpec } from '../query/compileEffectiveSearchSpec.js';
 import { BEHAVIOR_FAMILIES } from '../families/behaviorFamilies.js';
 import { scoreFieldedQuery, type FieldedDocument } from '../ranking/fieldedTextRanker.js';
 import { buildSnippetFromFile } from '../../analysis/ts/snippets.js';
 
 /**
  * Retrieve declaration-oriented candidates based on behavior family matching.
- * Uses fielded BM25 scoring over symbol tokens, path tokens, and doc tokens.
- * Does NOT use exact identifier matching — that's the identifier retriever's job.
+ * Uses the compiled spec's behaviorTerms (merged from parser + recipes).
  */
 export function retrieveBehaviorCandidates(
   ir: QueryIR,
   scope: SearchScope,
   index: WorkspaceIndex,
+  spec?: EffectiveSearchSpec,
 ): CodeCandidate[] {
   const matchedFamilies = BEHAVIOR_FAMILIES.filter((f) => ir.familyScores[f.id] > 0);
   if (matchedFamilies.length === 0 && ir.nlTokens.length === 0) return [];
@@ -44,8 +45,9 @@ export function retrieveBehaviorCandidates(
     };
   });
 
-  // Query tokens: NL tokens + family expansion + code tokens
-  const queryTokens = [...new Set([...ir.nlTokens, ...ir.codeTokens, ...expansionTerms])];
+  // Query tokens: use spec behaviorTerms if available, plus family expansion
+  const baseTerms = spec?.behaviorTerms ?? [...ir.nlTokens, ...ir.codeTokens];
+  const queryTokens = [...new Set([...baseTerms, ...expansionTerms])];
   const scored = scoreFieldedQuery(queryTokens, docs, { symbol: 8, path: 3, docs: 5 }, 100);
 
   const candidates: CodeCandidate[] = [];

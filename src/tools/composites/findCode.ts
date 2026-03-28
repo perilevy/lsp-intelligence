@@ -16,7 +16,9 @@ import { assessConfidence } from '../../search/ranking/assessConfidence.js';
 import { retrieveTextPatternCandidates } from '../../search/retrievers/textPatternRetriever.js';
 import { compileEffectiveSearchSpec } from '../../search/query/compileEffectiveSearchSpec.js';
 import { expandToImplementationRoots } from '../../search/expand/graphExpansion.js';
+import { absoluteCandidateKey } from '../../search/ranking/candidateIdentity.js';
 import { buildDebugTrace } from '../../search/debug/trace.js';
+import { relativePath } from '../../engine/positions.js';
 import type { FindCodeResult, FindCodeDebugInfo } from '../../search/types.js';
 
 export const findCode = defineTool({
@@ -42,11 +44,11 @@ export const findCode = defineTool({
     const spec = compileEffectiveSearchSpec(ir, plan);
 
     const behavior = plan.retrievers.includes('behavior')
-      ? retrieveBehaviorCandidates(ir, scope, index)
+      ? retrieveBehaviorCandidates(ir, scope, index, spec)
       : [];
 
     const identifier = plan.retrievers.includes('identifier')
-      ? retrieveIdentifierCandidates(ir, scope, index)
+      ? retrieveIdentifierCandidates(ir, scope, index, spec)
       : [];
 
     const structural = plan.retrievers.includes('structural')
@@ -54,15 +56,15 @@ export const findCode = defineTool({
       : [];
 
     const doc = plan.retrievers.includes('doc')
-      ? retrieveDocCandidates(ir, scope, index)
+      ? retrieveDocCandidates(ir, scope, index, spec)
       : [];
 
     const config = plan.retrievers.includes('config')
-      ? retrieveConfigCandidates(ir, scope, index)
+      ? retrieveConfigCandidates(ir, scope, index, spec)
       : [];
 
     const regex = plan.retrievers.includes('regex')
-      ? retrieveTextPatternCandidates(ir, scope, index)
+      ? retrieveTextPatternCandidates(ir, scope, index, spec)
       : [];
 
     const merged = mergeCandidates({ behavior, identifier, structural, regex, doc, config });
@@ -75,15 +77,24 @@ export const findCode = defineTool({
       try {
         const expansion = await expandToImplementationRoots(ranked, engine);
         graphExpanded = expansion.promoted.size;
+
+        // Apply score promotions/demotions using canonical keys
         for (const [key, promo] of expansion.promoted) {
           for (const c of ranked) {
-            if (`${c.filePath}:${c.line}` === key) {
+            if (absoluteCandidateKey(c) === key) {
               c.score += promo.scoreDelta;
               c.evidence.push(...promo.evidence);
               if (!c.sources.includes('graph')) c.sources.push('graph');
             }
           }
         }
+
+        // Merge derived candidates (implementation roots found by LSP)
+        for (const derived of expansion.derived) {
+          derived.filePath = relativePath(derived.filePath, engine.workspaceRoot);
+          ranked.push(derived);
+        }
+
         ranked.sort((a, b) => b.score - a.score);
         warnings.push(...expansion.warnings);
       } catch (err: any) {

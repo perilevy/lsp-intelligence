@@ -1,21 +1,23 @@
 import * as fs from 'fs';
 import type { QueryIR, SearchScope, WorkspaceIndex, CodeCandidate, RegExpSpec } from '../types.js';
+import type { EffectiveSearchSpec } from '../query/compileEffectiveSearchSpec.js';
 import { buildSnippetFromFile } from '../../analysis/ts/snippets.js';
 
 /**
  * Retrieve candidates by running compiled regex specs over scoped files.
- * Regex specs come from adapter recipes — this is grep-like power as an internal backend.
+ * Uses the compiled spec's merged regexes (from all adapter recipes).
  */
 export function retrieveTextPatternCandidates(
   ir: QueryIR,
   scope: SearchScope,
   index: WorkspaceIndex,
+  spec?: EffectiveSearchSpec,
 ): CodeCandidate[] {
-  // Collect all regex specs from recipes
-  const regexSpecs: RegExpSpec[] = [];
-  for (const recipe of ir.recipes) {
-    if (recipe.regexes) {
-      regexSpecs.push(...recipe.regexes);
+  // Use compiled spec regexes if available, otherwise collect from raw recipes
+  const regexSpecs: RegExpSpec[] = spec?.regexes ?? [];
+  if (regexSpecs.length === 0) {
+    for (const recipe of ir.recipes) {
+      if (recipe.regexes) regexSpecs.push(...recipe.regexes);
     }
   }
 

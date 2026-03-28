@@ -1,26 +1,29 @@
 import type { QueryIR, SearchScope, WorkspaceIndex, CodeCandidate } from '../types.js';
+import type { EffectiveSearchSpec } from '../query/compileEffectiveSearchSpec.js';
 import { buildSnippetFromFile } from '../../analysis/ts/snippets.js';
 
 /**
  * Retrieve usage-oriented candidates based on exact identifier matching.
- * Uses usage index — call expressions, member calls, imports, JSX tags.
- * This is the missing backend that makes useEffect, Promise.all queries work.
+ * Uses the compiled spec's identifiers (merged from parser + recipes).
  */
 export function retrieveIdentifierCandidates(
   ir: QueryIR,
   scope: SearchScope,
   index: WorkspaceIndex,
+  spec?: EffectiveSearchSpec,
 ): CodeCandidate[] {
   const candidates: CodeCandidate[] = [];
+  const exactIds = spec?.exactIdentifiers ?? ir.exactIdentifiers;
+  const dottedIds = spec?.dottedIdentifiers ?? ir.dottedIdentifiers;
 
-  if (ir.exactIdentifiers.length === 0 && ir.dottedIdentifiers.length === 0) return [];
+  if (exactIds.length === 0 && dottedIds.length === 0) return [];
 
   for (const usage of index.usages) {
     let score = 0;
     const evidence: string[] = [];
 
     // Exact identifier match
-    for (const id of ir.exactIdentifiers) {
+    for (const id of exactIds) {
       if (usage.identifier === id || usage.normalizedIdentifier === id) {
         score += 10;
         evidence.push(`exact-identifier: ${id}`);
@@ -28,7 +31,7 @@ export function retrieveIdentifierCandidates(
     }
 
     // Dotted identifier match (Promise.all, React.useEffect)
-    for (const id of ir.dottedIdentifiers) {
+    for (const id of dottedIds) {
       if (usage.identifier === id) {
         score += 10;
         evidence.push(`dotted-identifier: ${id}`);

@@ -1,19 +1,24 @@
 import type { QueryIR, SearchScope, WorkspaceIndex, CodeCandidate } from '../types.js';
+import type { EffectiveSearchSpec } from '../query/compileEffectiveSearchSpec.js';
 import { scoreFieldedQuery, type FieldedDocument } from '../ranking/fieldedTextRanker.js';
 import { buildSnippetFromFile } from '../../analysis/ts/snippets.js';
 
 /**
  * Retrieve candidates from the config/registry index.
- * Handles route/endpoint, env var, feature flag, and general config queries.
+ * Uses the compiled spec's configTerms and routeTerms for boosted scoring.
  */
 export function retrieveConfigCandidates(
   ir: QueryIR,
   scope: SearchScope,
   index: WorkspaceIndex,
+  spec?: EffectiveSearchSpec,
 ): CodeCandidate[] {
   if (index.configs.length === 0) return [];
 
-  const queryTokens = [...ir.nlTokens, ...ir.codeTokens, ...ir.exactIdentifiers.map((s) => s.toLowerCase())];
+  const baseTerms = spec?.behaviorTerms ?? [...ir.nlTokens, ...ir.codeTokens];
+  const extraTerms = [...(spec?.routeTerms ?? []), ...(spec?.configTerms ?? [])];
+  const idTerms = (spec?.exactIdentifiers ?? ir.exactIdentifiers).map((s) => s.toLowerCase());
+  const queryTokens = [...new Set([...baseTerms, ...extraTerms, ...idTerms])];
   if (queryTokens.length === 0) return [];
 
   const docs: FieldedDocument[] = index.configs.map((c, i) => ({
