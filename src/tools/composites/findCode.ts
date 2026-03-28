@@ -10,6 +10,7 @@ import { retrieveStructuralCandidates } from '../../search/retrievers/structural
 import { retrieveDocCandidates } from '../../search/retrievers/docRetriever.js';
 import { retrieveConfigCandidates } from '../../search/retrievers/configRetriever.js';
 import { mergeCandidates } from '../../search/ranking/mergeCandidates.js';
+import { coalesceCandidates } from '../../search/ranking/coalesceCandidates.js';
 import { rankCandidates } from '../../search/ranking/rankCandidates.js';
 import { assessConfidence } from '../../search/ranking/assessConfidence.js';
 import { retrieveTextPatternCandidates } from '../../search/retrievers/textPatternRetriever.js';
@@ -63,7 +64,8 @@ export const findCode = defineTool({
       : [];
 
     const merged = mergeCandidates({ behavior, identifier, structural, regex, doc, config });
-    const ranked = await rankCandidates(merged, { ir, plan, engine, scope });
+    const coalesced = coalesceCandidates(merged);
+    const ranked = await rankCandidates(coalesced, { ir, plan, engine, scope });
 
     // Graph expansion for implementation-root promotion
     let graphExpanded = 0;
@@ -93,12 +95,13 @@ export const findCode = defineTool({
 
     // Track partial results
     let partialResult = false;
-    if (index.files.size === 0) {
+    const hasCodeResults = behavior.length + identifier.length + structural.length + regex.length > 0;
+    const hasConfigResults = config.length > 0;
+    const hasDocResults = doc.length > 0;
+
+    if (index.files.size === 0 && !hasConfigResults) {
       warnings.push('no files found in scope');
       partialResult = true;
-    }
-    if (doc.length === 0 && plan.retrievers.includes('doc')) {
-      warnings.push('doc retriever returned no results — limited narrative bridge');
     }
 
     // Debug info

@@ -2,6 +2,7 @@ import ts from 'typescript';
 import type { CodeCandidate } from '../types.js';
 import type { LspEngine } from '../../engine/LspEngine.js';
 import { parseSourceFile } from '../../analysis/ts/parseSourceFile.js';
+import { relativePath } from '../../engine/positions.js';
 
 export interface GraphExpansionResult {
   promoted: Map<string, { scoreDelta: number; evidence: string[] }>;
@@ -45,7 +46,13 @@ export async function expandToImplementationRoots(
       try {
         const loc = await engine.resolveSymbol(wrapperInfo.callTarget);
         if (loc) {
-          const derivedKey = `${loc.uri}:${loc.position.line}`;
+          // Convert URI to relative path + 1-based line to match candidate keys
+          const filePath = relativePath(
+            loc.uri.startsWith('file://') ? decodeURIComponent(loc.uri.replace('file://', '')) : loc.uri,
+            engine.workspaceRoot,
+          );
+          const line1 = loc.position.line + 1; // LSP is 0-based, candidates are 1-based
+          const derivedKey = `${filePath}:${line1}`;
           if (!promoted.has(derivedKey)) {
             promoted.set(derivedKey, {
               scoreDelta: 4, // Promote implementation roots

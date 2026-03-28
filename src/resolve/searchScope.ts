@@ -26,15 +26,32 @@ export function resolveSearchScope(
  * Collect all code files (TS/TSX/JS/JSX/MJS/CJS) within the search scope.
  * Skips dot-prefixed dirs, build output, minified/bundled files, and oversized files.
  */
+export interface ScopeCollectionResult {
+  files: string[];
+  capped: boolean;
+  capReason?: 'max-files' | 'max-depth';
+}
+
 export function collectScopeFiles(scope: SearchScope, maxFiles: number = 2000): string[] {
+  const result = collectScopeFilesWithMeta(scope, maxFiles);
+  return result.files;
+}
+
+export function collectScopeFilesWithMeta(scope: SearchScope, maxFiles: number = 2000): ScopeCollectionResult {
   const files: string[] = [];
+  let hitDepthLimit = false;
 
   for (const root of scope.roots) {
-    walkDir(root, files, scope.includeTests, maxFiles, 0);
+    const depthHit = walkDir(root, files, scope.includeTests, maxFiles, 0);
+    if (depthHit) hitDepthLimit = true;
     if (files.length >= maxFiles) break;
   }
 
-  return files;
+  return {
+    files,
+    capped: files.length >= maxFiles || hitDepthLimit,
+    capReason: files.length >= maxFiles ? 'max-files' : hitDepthLimit ? 'max-depth' : undefined,
+  };
 }
 
 function walkDir(
@@ -43,19 +60,23 @@ function walkDir(
   includeTests: boolean,
   maxFiles: number,
   depth: number,
-): void {
-  if (depth > 8 || files.length >= maxFiles) return;
+): boolean {
+  if (depth > 8) return true;
+  if (files.length >= maxFiles) return false;
+  let hitDepth = false;
   try {
     for (const entry of fs.readdirSync(dir)) {
       if (shouldSkipDir(entry)) continue;
       const full = path.join(dir, entry);
       const stat = fs.statSync(full);
       if (stat.isDirectory()) {
-        walkDir(full, files, includeTests, maxFiles, depth + 1);
+        const sub = walkDir(full, files, includeTests, maxFiles, depth + 1);
+        if (sub) hitDepth = true;
       } else if (isCodeFile(full) && !shouldSkipFile(full, stat.size)) {
         if (!includeTests && isTestFile(full)) continue;
         files.push(full);
       }
     }
   } catch {}
+  return hitDepth;
 }

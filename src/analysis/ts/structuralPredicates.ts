@@ -109,6 +109,7 @@ function isCallbackLike(node: ts.Node): boolean {
 }
 
 function containsTryCatch(node: ts.Node): boolean {
+  if (ts.isTryStatement(node)) return true;
   let found = false;
   function walk(n: ts.Node) {
     if (found) return;
@@ -120,6 +121,10 @@ function containsTryCatch(node: ts.Node): boolean {
 }
 
 function hasSwitchWithoutDefault(node: ts.Node): boolean {
+  // Check node itself first (statementLocator passes the SwitchStatement directly)
+  if (ts.isSwitchStatement(node)) {
+    return !node.caseBlock.clauses.some((c) => ts.isDefaultClause(c));
+  }
   let found = false;
   function walk(n: ts.Node) {
     if (found) return;
@@ -134,15 +139,31 @@ function hasSwitchWithoutDefault(node: ts.Node): boolean {
 }
 
 function hasAwaitInLoop(node: ts.Node): boolean {
+  const isLoop = (n: ts.Node) =>
+    ts.isForStatement(n) || ts.isForOfStatement(n) || ts.isForInStatement(n) || ts.isWhileStatement(n) || ts.isDoStatement(n);
+
+  // If node itself is a loop, check its body for await
+  if (isLoop(node)) {
+    let found = false;
+    function walkBody(n: ts.Node) {
+      if (found) return;
+      if (ts.isAwaitExpression(n)) { found = true; return; }
+      if (ts.isFunctionDeclaration(n) || ts.isArrowFunction(n) || ts.isFunctionExpression(n)) return;
+      ts.forEachChild(n, walkBody);
+    }
+    ts.forEachChild(node, walkBody);
+    return found;
+  }
+
+  // Otherwise search descendants for loop-with-await
   let insideLoop = false;
   let found = false;
   function walk(n: ts.Node) {
     if (found) return;
     const wasInsideLoop = insideLoop;
-    if (ts.isForStatement(n) || ts.isForOfStatement(n) || ts.isForInStatement(n) || ts.isWhileStatement(n) || ts.isDoStatement(n)) {
-      insideLoop = true;
-    }
+    if (isLoop(n)) insideLoop = true;
     if (insideLoop && ts.isAwaitExpression(n)) { found = true; return; }
+    if (ts.isFunctionDeclaration(n) || ts.isArrowFunction(n) || ts.isFunctionExpression(n)) return;
     ts.forEachChild(n, walk);
     insideLoop = wasInsideLoop;
   }
