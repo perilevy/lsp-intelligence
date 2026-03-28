@@ -27,7 +27,7 @@ export const callHierarchy = defineTool({
 
     // Step 1: Prepare call hierarchy
     const items = await engine.request<CallHierarchyItem[] | null>(
-      'textDocument/prepareCallHierarchy', { textDocument: { uri }, position },
+      'textDocument/prepareCallHierarchy', { textDocument: { uri }, position }, 20_000,
     );
     if (!items || items.length === 0) return 'No call hierarchy available for this symbol.';
     const item = items[0];
