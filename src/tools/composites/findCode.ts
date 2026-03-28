@@ -108,13 +108,15 @@ export const findCode = defineTool({
 
     // Track partial results
     let partialResult = false;
-    const hasCodeResults = behavior.length + identifier.length + structural.length + regex.length > 0;
     const hasConfigResults = config.length > 0;
-    const hasDocResults = doc.length > 0;
 
     if (index.files.size === 0 && !hasConfigResults) {
       warnings.push('no files found in scope');
       partialResult = true;
+    }
+    if (index.scopeCapped) {
+      partialResult = true;
+      warnings.push(`scope capped: ${index.capReason ?? 'unknown'} — results may be incomplete`);
     }
 
     // Debug info
@@ -138,6 +140,9 @@ export const findCode = defineTool({
       candidates: topResults,
       stats: {
         filesIndexed: index.files.size,
+        codeFilesIndexed: index.files.size,
+        configFilesIndexed: index.configs.length,
+        scopeCapped: index.scopeCapped,
         declarationHits: behavior.length,
         usageHits: identifier.length,
         structuralHits: structural.length,

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import type { SearchScope, WorkspaceIndex, IndexedFile, DeclarationIndexEntry, UsageIndexEntry, DocIndexEntry, ConfigIndexEntry } from '../types.js';
-import { collectScopeFiles } from '../../resolve/searchScope.js';
+import { collectScopeFiles, collectScopeFilesWithMeta, type ScopeCollectionResult } from '../../resolve/searchScope.js';
 import { indexFileDeclarations } from './declarationIndex.js';
 import { indexFileUsages } from './usageIndex.js';
 import { indexFileDocs } from './docIndex.js';
@@ -98,7 +98,8 @@ export function getWorkspaceIndex(
 function buildFreshIndex(scope: SearchScope): WorkspaceIndex {
   const root = scope.roots[0] ?? '';
   const files = new Map<string, IndexedFile>();
-  const scopeFiles = collectScopeFiles(scope);
+  const scopeMeta = collectScopeFilesWithMeta(scope);
+  const scopeFiles = scopeMeta.files;
 
   for (const filePath of scopeFiles) {
     try {
@@ -120,6 +121,8 @@ function buildFreshIndex(scope: SearchScope): WorkspaceIndex {
     usages: [],
     docs: [],
     configs: [],
+    scopeCapped: scopeMeta.capped,
+    capReason: scopeMeta.capReason,
   };
 
   rebuildFlatArrays(index, scope);

@@ -196,6 +196,8 @@ export interface WorkspaceIndex {
   usages: UsageIndexEntry[];
   docs: DocIndexEntry[];
   configs: ConfigIndexEntry[];
+  scopeCapped: boolean;
+  capReason?: 'max-files' | 'max-depth';
 }
 
 // ============================================================================
@@ -220,6 +222,9 @@ export interface FindCodeResult {
   candidates: CodeCandidate[];
   stats: {
     filesIndexed: number;
+    codeFilesIndexed: number;
+    configFilesIndexed: number;
+    scopeCapped: boolean;
     declarationHits: number;
     usageHits: number;
     structuralHits: number;
