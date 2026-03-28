@@ -1,0 +1,12 @@
+{
+  "id": "useEffect-functional-state-updater",
+  "category": "structural",
+  "query": "useEffect that sets state based on previous state",
+  "fixture": "monorepo",
+  "expected": {
+    "retrievers": ["identifier", "structural"],
+    "topFiles": ["effects.tsx"],
+    "confidenceFloor": "medium"
+  },
+  "notes": "React adapter recipe + functional-state-updater predicate. Should find CounterComponent, not ResetComponent."
+}

@@ -57,3 +57,22 @@ export function usePermissions(userId: string) {
   useEffect(() => { callApi(`/perms/${userId}`); }, [userId]);
   return perms;
 }
+
+/** useEffect that sets state based on previous state — functional updater pattern */
+export function CounterComponent() {
+  const [, setCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount((prev: number) => prev + 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+}
+
+/** useEffect with constant updater — NOT functional (prev unused) */
+export function ResetComponent() {
+  const [, setValue] = useState(0);
+  useEffect(() => {
+    setValue(() => 0);
+  }, []);
+}
