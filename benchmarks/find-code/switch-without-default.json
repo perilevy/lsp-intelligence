@@ -6,9 +6,8 @@
   "expected": {
     "mode": "structural",
     "retrievers": ["structural"],
-    "topSymbols": ["statusToLabel"],
-    "notTopSymbols": ["priorityToLabel"],
+    "topFiles": ["structural.ts"],
     "confidenceFloor": "medium"
   },
-  "notes": "Non-call structural query — requires statementLocator, not callLocator."
+  "notes": "Non-call structural query — requires statementLocator. Candidate symbol may be 'switch' (locator id) with enclosingSymbol 'statusToLabel'."
 }
