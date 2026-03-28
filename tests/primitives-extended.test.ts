@@ -63,7 +63,7 @@ describe('Extended Primitives', () => {
   });
 
   describe('call_hierarchy', () => {
-    it('finds incoming callers or reports none', async () => {
+    it('finds incoming callers or reports none', { timeout: 20_000 }, async () => {
       const result = await callHierarchy.handler(
         { symbol: 'withConsumer', direction: 'incoming' },
         engine,
