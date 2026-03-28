@@ -45,5 +45,8 @@ jobs:
       - name: Test
         run: yarn test
 
-      - name: Benchmarks
+      - name: Planner benchmarks
         run: yarn bench
+
+      - name: End-to-end benchmarks
+        run: yarn bench:e2e
