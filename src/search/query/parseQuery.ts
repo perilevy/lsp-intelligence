@@ -71,6 +71,7 @@ export function parseQuery(
   opts?: {
     forcedMode?: SearchPlan['mode'] | 'auto';
     forcedFamily?: string;
+    forcedFocus?: 'auto' | 'implementation' | 'usage' | 'pattern' | 'config';
   },
 ): QueryIR {
   const words = raw.split(/\s+/).filter(Boolean);
@@ -179,6 +180,26 @@ export function parseQuery(
     familyScores[resolvedFamily] = (familyScores[resolvedFamily] ?? 0) + 10;
   }
 
+  // --- Focus → internal mode/trait mapping ---
+  // The public API uses 'focus' instead of 'mode'/'family'. Map it to internals.
+  if (opts?.forcedFocus && opts.forcedFocus !== 'auto') {
+    switch (opts.forcedFocus) {
+      case 'usage':
+        opts.forcedMode = 'identifier';
+        break;
+      case 'implementation':
+        opts.forcedMode = 'behavior';
+        break;
+      case 'pattern':
+        opts.forcedMode = 'structural';
+        break;
+      case 'config':
+        // Config focus doesn't map to a mode — it activates the config trait
+        // (handled in traits section below)
+        break;
+    }
+  }
+
   // --- Mode routing ---
   const identifierScore = exactIdentifiers.length * 3 + dottedIdentifiers.length * 3;
   const structuralScore = structuralPredicates.length * 2 + codeTokens.length;
@@ -231,9 +252,15 @@ export function parseQuery(
 
   // --- Traits ---
   const allLower = raw.toLowerCase();
+  const isConfigFocus = opts?.forcedFocus === 'config';
+  const hasHookIdentifier = exactIdentifiers.some((id) => /^use[A-Z]/.test(id));
   const traits: QueryTraits = {
-    routeLike: /\b(route|endpoint|url|path|api|handler)\b/.test(allLower),
-    configLike: /\b(config|env|flag|toggle|setting|variable|secret)\b/.test(allLower),
+    reactLike: hasHookIdentifier || /\b(react|component|jsx|hook|use[A-Z])\b/.test(allLower),
+    stateLike: /\b(state|set[A-Z]\w*|useState|reducer|dispatch)\b/.test(allLower),
+    previousStateLike: /\b(prev|previous|current|existing|old)\b.*\b(state)\b/.test(allLower)
+      || /\bbased on (prev|previous|current)\b/.test(allLower),
+    routeLike: isConfigFocus || /\b(route|endpoint|url|path|api|handler)\b/.test(allLower),
+    configLike: isConfigFocus || /\b(config|env|flag|toggle|setting|variable|secret)\b/.test(allLower),
     implementationRoot: /\b(real|actual|root|implementation|where.*(handled|defined|implemented))\b/.test(allLower),
     testIntent: /\b(test|spec|describe|it\s+should)\b/.test(allLower),
   };
@@ -248,6 +275,7 @@ export function parseQuery(
     familyScores,
     structuralPredicates,
     traits,
+    recipes: [], // Populated by adapters in planQuery
     mode,
     modeConfidence,
     routingReasons,

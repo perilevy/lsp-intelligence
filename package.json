@@ -19,7 +19,8 @@
     "start": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bench": "tsx benchmarks/run.ts"
   },
   "dependencies": {
     "@ast-grep/napi": "^0.42.0",

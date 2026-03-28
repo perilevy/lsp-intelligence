@@ -1,5 +1,6 @@
 import ts from 'typescript';
 import type { StructuralPredicate } from '../../search/types.js';
+import { hasFunctionalStateUpdater } from './reactState.js';
 
 /**
  * Evaluate structural predicates on a TS AST node.
@@ -55,6 +56,9 @@ function evaluatePredicate(sf: ts.SourceFile, node: ts.Node, pred: StructuralPre
 
     case 'hook-callback':
       return isHookCallback(node) ? 'is a callback argument to a hook' : null;
+
+    case 'functional-state-updater':
+      return hasFunctionalStateUpdater(node) ? 'contains functional state updater (e.g. setState(prev => ...))' : null;
 
     default:
       return null;

@@ -1,24 +1,28 @@
 import type { QueryIR, SearchPlan } from '../types.js';
+import { runAdapters } from '../adapters/registry.js';
 
 /**
  * Plan which retrievers to use based on the parsed query IR.
  *
- * Key design rules:
- * - identifier + structural WITHOUT behavior is valid (useEffect cleanup queries)
- * - doc retriever adds narrative bridge for behavior queries
- * - config retriever activates for route/config/flag traits
- * - graph expansion activates for implementation-root queries
+ * Steps:
+ * 1. Run adapters to generate recipes (mutates ir.recipes)
+ * 2. Merge recipe retriever requirements with mode-based defaults
+ * 3. Decide graph expansion from traits
  */
 export function planQuery(ir: QueryIR): SearchPlan {
+  // Step 1: Run adapters to populate recipes
+  const recipes = runAdapters(ir);
+  ir.recipes = recipes;
+
   const retrievers: SearchPlan['retrievers'] = [];
   const reasons: string[] = [];
   let expandGraph = false;
 
+  // Step 2: Mode-based default retrievers
   switch (ir.mode) {
     case 'behavior':
       retrievers.push('behavior');
       reasons.push('behavior family matched — searching declarations by concept');
-      // Always add doc retriever for behavior queries (narrative bridge)
       retrievers.push('doc');
       reasons.push('doc retriever for narrative/comment bridge');
       break;
@@ -57,10 +61,23 @@ export function planQuery(ir: QueryIR): SearchPlan {
       break;
   }
 
+  // Step 3: Merge recipe retrievers
+  for (const recipe of recipes) {
+    for (const r of recipe.retrievers) {
+      if (!retrievers.includes(r)) {
+        retrievers.push(r);
+        reasons.push(`recipe ${recipe.id} → ${r} retriever`);
+      }
+    }
+    reasons.push(...recipe.reasons);
+  }
+
   // Config retriever for route/config/flag/env queries
   if (ir.traits.routeLike || ir.traits.configLike) {
-    retrievers.push('config');
-    reasons.push('config/route trait detected — searching config files');
+    if (!retrievers.includes('config')) {
+      retrievers.push('config');
+      reasons.push('config/route trait detected — searching config files');
+    }
   }
 
   // Graph expansion for implementation-root queries

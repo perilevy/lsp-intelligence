@@ -12,30 +12,29 @@ import { retrieveConfigCandidates } from '../../search/retrievers/configRetrieve
 import { mergeCandidates } from '../../search/ranking/mergeCandidates.js';
 import { rankCandidates } from '../../search/ranking/rankCandidates.js';
 import { assessConfidence } from '../../search/ranking/assessConfidence.js';
+import { retrieveTextPatternCandidates } from '../../search/retrievers/textPatternRetriever.js';
 import { expandToImplementationRoots } from '../../search/expand/graphExpansion.js';
-import type { FindCodeResult } from '../../search/types.js';
+import { buildDebugTrace } from '../../search/debug/trace.js';
+import type { FindCodeResult, FindCodeDebugInfo } from '../../search/types.js';
 
 export const findCode = defineTool({
   name: 'find_code',
   description:
-    'High-level code search: behavior discovery, identifier/API usage search, structural queries, config/route lookup, and implementation-root discovery. The agent does not need to choose the backend — the tool routes automatically based on the query.',
+    'High-level code search: behavior discovery, identifier/API usage search, structural queries, config/route lookup, and implementation-root discovery. Routes automatically — the agent does not need to choose the backend.',
   schema: z.object({
-    query: z.string().describe('Natural-language or code-oriented query'),
-    paths: z.array(z.string()).optional().describe('Directories/files to narrow search'),
+    query: z.string().describe('Natural-language or code-oriented search query'),
+    paths: z.array(z.string()).optional().describe('Optional directories/files to narrow search'),
     max_results: z.number().default(10),
-    mode: z.enum(['auto', 'behavior', 'identifier', 'structural', 'mixed']).default('auto'),
-    family: z.enum(['auth', 'validation', 'fetching', 'errors', 'state', 'flags', 'retry', 'caching']).optional().describe('Optional family override'),
     include_tests: z.boolean().default(false),
+    focus: z.enum(['auto', 'implementation', 'usage', 'pattern', 'config']).default('auto'),
+    debug: z.boolean().optional().describe('Include debug trace in output'),
   }),
   async handler(params, engine) {
     const startTime = Date.now();
     const warnings: string[] = [];
 
     const scope = resolveSearchScope(engine.workspaceRoot, params.paths, params.include_tests);
-    const ir = parseQuery(params.query, {
-      forcedMode: params.mode === 'auto' ? undefined : params.mode,
-      forcedFamily: params.family,
-    });
+    const ir = parseQuery(params.query, { forcedFocus: params.focus });
     const plan = planQuery(ir);
     const index = getWorkspaceIndex(scope);
 
@@ -59,13 +58,19 @@ export const findCode = defineTool({
       ? retrieveConfigCandidates(ir, scope, index)
       : [];
 
-    const merged = mergeCandidates({ behavior, identifier, structural, doc, config });
+    const regex = plan.retrievers.includes('regex')
+      ? retrieveTextPatternCandidates(ir, scope, index)
+      : [];
+
+    const merged = mergeCandidates({ behavior, identifier, structural, regex, doc, config });
     const ranked = await rankCandidates(merged, { ir, plan, engine, scope });
 
     // Graph expansion for implementation-root promotion
+    let graphExpanded = 0;
     if (plan.expandGraph && ranked.length > 0) {
       try {
         const expansion = await expandToImplementationRoots(ranked, engine);
+        graphExpanded = expansion.promoted.size;
         for (const [key, promo] of expansion.promoted) {
           for (const c of ranked) {
             if (`${c.filePath}:${c.line}` === key) {
@@ -96,6 +101,19 @@ export const findCode = defineTool({
       warnings.push('doc retriever returned no results — limited narrative bridge');
     }
 
+    // Debug info
+    let debug: FindCodeDebugInfo | undefined;
+    if (params.debug) {
+      debug = buildDebugTrace(ir, plan, topResults, {
+        behavior: behavior.length,
+        identifier: identifier.length,
+        structural: structural.length,
+        regex: regex.length,
+        doc: doc.length,
+        config: config.length,
+      });
+    }
+
     const result: FindCodeResult = {
       query: params.query,
       ir,
@@ -107,11 +125,16 @@ export const findCode = defineTool({
         declarationHits: behavior.length,
         usageHits: identifier.length,
         structuralHits: structural.length,
+        regexHits: regex.length,
+        docHits: doc.length,
+        configHits: config.length,
+        graphExpanded,
         lspEnriched,
         elapsedMs: Date.now() - startTime,
         partialResult,
       },
       warnings,
+      debug,
     };
 
     return result;

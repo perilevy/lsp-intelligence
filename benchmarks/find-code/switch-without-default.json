@@ -1,0 +1,14 @@
+{
+  "id": "switch-without-default",
+  "category": "structural",
+  "query": "switch without default",
+  "fixture": "monorepo",
+  "expected": {
+    "mode": "structural",
+    "retrievers": ["structural"],
+    "topSymbols": ["statusToLabel"],
+    "notTopSymbols": ["priorityToLabel"],
+    "confidenceFloor": "medium"
+  },
+  "notes": "Non-call structural query — requires statementLocator, not callLocator."
+}

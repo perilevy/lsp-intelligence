@@ -9,6 +9,7 @@ export function mergeCandidates(inputs: {
   behavior: CodeCandidate[];
   identifier: CodeCandidate[];
   structural: CodeCandidate[];
+  regex: CodeCandidate[];
   doc: CodeCandidate[];
   config: CodeCandidate[];
 }): CodeCandidate[] {
@@ -41,6 +42,21 @@ export function mergeCandidates(inputs: {
     if (existing) {
       existing.score += c.score + 3;
       existing.evidence.push(...c.evidence, 'structural-overlap');
+      for (const s of c.sources) {
+        if (!existing.sources.includes(s)) existing.sources.push(s);
+      }
+    } else {
+      merged.set(key, { ...c });
+    }
+  }
+
+  // Merge regex candidates — boost on overlap
+  for (const c of inputs.regex) {
+    const key = candidateKey(c);
+    const existing = merged.get(key);
+    if (existing) {
+      existing.score += c.score + 2;
+      existing.evidence.push(...c.evidence, 'regex-overlap');
       for (const s of c.sources) {
         if (!existing.sources.includes(s)) existing.sources.push(s);
       }

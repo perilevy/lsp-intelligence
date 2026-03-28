@@ -42,6 +42,37 @@ export async function rankCandidates(
     if (c.filePath.endsWith('.d.ts')) { c.score -= 6; c.evidence.push('penalty: declaration-file'); }
   }
 
+  // Recipe-aware scoring: boost candidates from multiple backends, downweight identifier-only when recipes exist
+  const hasRecipes = ctx.ir.recipes.length > 0;
+  for (const c of clean) {
+    // Multi-source bonus
+    if (c.sources.length >= 3) {
+      c.score += 3;
+      c.evidence.push('multi-source-bonus');
+    }
+    // Recipe score boost
+    for (const recipe of ctx.ir.recipes) {
+      if (recipe.scoreBoost && recipe.scoreBoost > 0) {
+        // Boost if candidate matches recipe's identifiers
+        const recipeIds = recipe.exactIdentifiers ?? [];
+        if (recipeIds.length === 0 || recipeIds.some((id) => c.matchedIdentifier === id || c.symbol === id)) {
+          // Extra boost if candidate has structural evidence matching recipe
+          const hasStructural = c.sources.includes('structural');
+          const hasRegex = c.evidence.some((e) => e.startsWith('regex-match'));
+          if (hasStructural || hasRegex) {
+            c.score += recipe.scoreBoost;
+            c.evidence.push(`recipe-boost: ${recipe.id}(+${recipe.scoreBoost})`);
+          }
+        }
+      }
+    }
+    // Downweight identifier-only hits when recipes demand richer evidence
+    if (hasRecipes && c.sources.length === 1 && c.sources[0] === 'identifier') {
+      c.score -= 2;
+      c.evidence.push('penalty: identifier-only-with-recipe');
+    }
+  }
+
   // Filter out negative scores
   const filtered = clean.filter((c) => c.score > 0);
 

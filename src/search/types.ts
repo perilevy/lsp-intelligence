@@ -12,13 +12,38 @@ export type StructuralPredicate =
   | 'switch-no-default'
   | 'await-in-loop'
   | 'inside-hook'
-  | 'hook-callback';
+  | 'hook-callback'
+  | 'functional-state-updater';
 
 export interface QueryTraits {
+  reactLike: boolean;
+  stateLike: boolean;
+  previousStateLike: boolean;
   routeLike: boolean;
   configLike: boolean;
   implementationRoot: boolean;
   testIntent: boolean;
+}
+
+// ============================================================================
+// Search recipes — compiled from query + adapters
+// ============================================================================
+
+export interface RegExpSpec {
+  id: string;
+  pattern: string;
+  flags?: string;
+}
+
+export interface SearchRecipe {
+  id: string;
+  adapter: string;
+  retrievers: Array<'behavior' | 'identifier' | 'structural' | 'regex' | 'doc' | 'config'>;
+  exactIdentifiers?: string[];
+  structuralPredicates?: StructuralPredicate[];
+  regexes?: RegExpSpec[];
+  scoreBoost?: number;
+  reasons: string[];
 }
 
 export interface QueryIR {
@@ -45,6 +70,9 @@ export interface QueryIR {
   /** Semantic traits inferred from the query */
   traits: QueryTraits;
 
+  /** Search recipes compiled from adapters */
+  recipes: SearchRecipe[];
+
   /** Routing mode */
   mode: 'behavior' | 'identifier' | 'structural' | 'mixed';
   modeConfidence: 'high' | 'medium' | 'low';
@@ -57,7 +85,7 @@ export interface QueryIR {
 
 export interface SearchPlan {
   mode: 'behavior' | 'identifier' | 'structural' | 'mixed';
-  retrievers: Array<'behavior' | 'identifier' | 'structural' | 'doc' | 'config'>;
+  retrievers: Array<'behavior' | 'identifier' | 'structural' | 'regex' | 'doc' | 'config'>;
   reasons: string[];
   expandGraph: boolean;
 }
@@ -174,6 +202,16 @@ export interface WorkspaceIndex {
 // Result types — final output from find_code
 // ============================================================================
 
+export interface FindCodeDebugInfo {
+  recipes: string[];
+  retrieverStats: Record<string, number>;
+  scoreBreakdown: Array<{
+    candidateKey: string;
+    score: number;
+    evidence: string[];
+  }>;
+}
+
 export interface FindCodeResult {
   query: string;
   ir: QueryIR;
@@ -185,11 +223,16 @@ export interface FindCodeResult {
     declarationHits: number;
     usageHits: number;
     structuralHits: number;
+    regexHits: number;
+    docHits: number;
+    configHits: number;
+    graphExpanded: number;
     lspEnriched: number;
     elapsedMs: number;
     partialResult: boolean;
   };
   warnings: string[];
+  debug?: FindCodeDebugInfo;
 }
 
 export interface PatternMatch {
@@ -203,7 +246,7 @@ export interface PatternMatch {
 
 export interface FindPatternResult {
   pattern: string;
-  language: 'typescript' | 'tsx' | 'javascript';
+  language: 'typescript' | 'tsx' | 'javascript' | 'jsx';
   filesScanned: number;
   matchCount: number;
   matches: PatternMatch[];

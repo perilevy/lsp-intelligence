@@ -8,12 +8,14 @@ const LANG_MAP: Record<string, Lang> = {
   typescript: Lang.TypeScript,
   tsx: Lang.Tsx,
   javascript: Lang.JavaScript,
+  jsx: Lang.Tsx, // ast-grep uses Tsx parser for JSX
 };
 
 const EXT_MAP: Record<string, string[]> = {
   typescript: ['.ts', '.mjs', '.cjs'],
   tsx: ['.tsx', '.ts'],
-  javascript: ['.js', '.jsx', '.mjs', '.cjs'],
+  javascript: ['.js', '.mjs', '.cjs'],
+  jsx: ['.jsx', '.js'],
 };
 
 /**
@@ -22,7 +24,7 @@ const EXT_MAP: Record<string, string[]> = {
  */
 export function runPatternSearch(input: {
   pattern: string;
-  language: 'typescript' | 'tsx' | 'javascript';
+  language: 'typescript' | 'tsx' | 'javascript' | 'jsx';
   scope: SearchScope;
   maxResults: number;
   contextLines: number;
