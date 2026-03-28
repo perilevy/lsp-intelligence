@@ -1,4 +1,5 @@
-import type { QueryIR, SearchScope, WorkspaceIndex, CodeCandidate } from '../types.js';
+import type { QueryIR, SearchScope, WorkspaceIndex, CodeCandidate, StructuralPredicate } from '../types.js';
+import type { EffectiveSearchSpec } from '../query/compileEffectiveSearchSpec.js';
 import { parseSourceFile } from '../../analysis/ts/parseSourceFile.js';
 import { evaluateStructuralPredicates } from '../../analysis/ts/structuralPredicates.js';
 import { buildSnippetFromFile } from '../../analysis/ts/snippets.js';
@@ -8,19 +9,20 @@ import ts from 'typescript';
 /**
  * Retrieve candidates using structural predicate evaluation.
  *
- * Uses the locator system to find candidate nodes:
- * - callLocator: call expressions (useEffect, Promise.all, etc.)
- * - statementLocator: switch, try/catch, loops with await
- * - declarationLocator: function/method declarations
- *
- * Then evaluates structural predicates on each located node.
+ * When an EffectiveSearchSpec is provided, uses its merged predicates/identifiers
+ * (which include recipe contributions). Falls back to raw IR otherwise.
  */
 export function retrieveStructuralCandidates(
   ir: QueryIR,
   scope: SearchScope,
   index: WorkspaceIndex,
+  spec?: EffectiveSearchSpec,
 ): CodeCandidate[] {
-  if (ir.structuralPredicates.length === 0) return [];
+  const predicates: StructuralPredicate[] = spec?.structuralPredicates ?? ir.structuralPredicates;
+  const exactIds = spec?.exactIdentifiers ?? ir.exactIdentifiers;
+  const dottedIds = spec?.dottedIdentifiers ?? ir.dottedIdentifiers;
+
+  if (predicates.length === 0) return [];
 
   const candidates: CodeCandidate[] = [];
   const maxFiles = 80;
@@ -32,9 +34,9 @@ export function retrieveStructuralCandidates(
   // Determine which files to check
   const targetFiles = new Set<string>();
 
-  if (ir.exactIdentifiers.length > 0 || ir.dottedIdentifiers.length > 0) {
+  if (exactIds.length > 0 || dottedIds.length > 0) {
     // If we have identifiers, only check files with matching usages
-    const allIds = [...ir.exactIdentifiers, ...ir.dottedIdentifiers];
+    const allIds = [...exactIds, ...dottedIds];
     for (const usage of index.usages) {
       if (allIds.some((id) => usage.identifier === id || usage.normalizedIdentifier === id)) {
         targetFiles.add(usage.filePath);
@@ -60,11 +62,11 @@ export function retrieveStructuralCandidates(
       const nodes = locator.locate(sf, ir);
 
       for (const { node, identifier, line } of nodes) {
-        const { matched, evidence } = evaluateStructuralPredicates(sf, node, ir.structuralPredicates);
+        const { matched, evidence } = evaluateStructuralPredicates(sf, node, predicates);
 
         if (matched.length === 0) continue;
 
-        const score = matched.length * 5 + (matched.length === ir.structuralPredicates.length ? 5 : 0);
+        const score = matched.length * 5 + (matched.length === predicates.length ? 5 : 0);
         const { snippet, context } = buildSnippetFromFile(filePath, line, 2);
         const enclosing = findEnclosingDeclaration(node);
 

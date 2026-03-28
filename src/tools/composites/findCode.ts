@@ -14,6 +14,7 @@ import { coalesceCandidates } from '../../search/ranking/coalesceCandidates.js';
 import { rankCandidates } from '../../search/ranking/rankCandidates.js';
 import { assessConfidence } from '../../search/ranking/assessConfidence.js';
 import { retrieveTextPatternCandidates } from '../../search/retrievers/textPatternRetriever.js';
+import { compileEffectiveSearchSpec } from '../../search/query/compileEffectiveSearchSpec.js';
 import { expandToImplementationRoots } from '../../search/expand/graphExpansion.js';
 import { buildDebugTrace } from '../../search/debug/trace.js';
 import type { FindCodeResult, FindCodeDebugInfo } from '../../search/types.js';
@@ -38,6 +39,7 @@ export const findCode = defineTool({
     const ir = parseQuery(params.query, { forcedFocus: params.focus });
     const plan = planQuery(ir);
     const index = getWorkspaceIndex(scope);
+    const spec = compileEffectiveSearchSpec(ir, plan);
 
     const behavior = plan.retrievers.includes('behavior')
       ? retrieveBehaviorCandidates(ir, scope, index)
@@ -48,7 +50,7 @@ export const findCode = defineTool({
       : [];
 
     const structural = plan.retrievers.includes('structural')
-      ? retrieveStructuralCandidates(ir, scope, index)
+      ? retrieveStructuralCandidates(ir, scope, index, spec)
       : [];
 
     const doc = plan.retrievers.includes('doc')

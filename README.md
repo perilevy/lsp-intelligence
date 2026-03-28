@@ -201,7 +201,7 @@ Post-edit verification.
 │   gather_context, outline                               │
 ├─────────────────────────────────────────────────────────┤
 │ Layer 2: Intelligence Tools              [read-only]      │
-│   api_guard, root_cause_trace, find_code, find_pattern, │
+│   find_code, find_pattern, root_cause_trace, api_guard, │
 │   impact_trace, semantic_diff, inspect_symbol,          │
 │   batch_query, find_test_files, explain_error           │
 ├─────────────────────────────────────────────────────────┤
@@ -209,9 +209,13 @@ Post-edit verification.
 │   find_references, hover, definition, call_hierarchy,   │
 │   rename, diagnostics, symbols, imports, exports        │
 ├─────────────────────────────────────────────────────────┤
-│ Layer 0: LSP Engine                     [infrastructure]  │
-│   TypeScript Server spawn, monorepo preopen,            │
-│   symbol resolver, document manager                     │
+│ Layer 0: Analysis Substrates            [infrastructure]  │
+│   LSP Engine (TypeScript Server, symbol resolver)       │
+│   TypeScript AST (declarations, usages, predicates)     │
+│   Local text/regex search (recipe-compiled patterns)    │
+│   Config/doc indexes (JSON, YAML, env, JSDoc, comments) │
+│   Graph expansion (wrapper detection, root promotion)   │
+│   Git integration (semantic diff, base comparison)      │
 └─────────────────────────────────────────────────────────┘
 ```
 
