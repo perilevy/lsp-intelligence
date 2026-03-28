@@ -45,7 +45,8 @@ export function retrieveConfigCandidates(
       kind: 'config',
       snippet,
       context,
-      score: Math.round(s.score),
+      score: Math.round(s.score) + (entry.kind === 'route' && spec?.routeTerms.length ? 3 : 0)
+        + (entry.kind === 'env' && spec?.configTerms.length ? 2 : 0),
       evidence: [`config-${entry.kind}: "${entry.text.substring(0, 80)}"`, ...s.evidence],
       sources: ['config'],
     });

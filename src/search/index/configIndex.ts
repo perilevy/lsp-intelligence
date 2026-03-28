@@ -8,7 +8,10 @@ const CONFIG_FILENAMES = [
   'package.json', 'tsconfig.json', 'next.config.js', 'next.config.ts',
   'vite.config.ts', 'vite.config.js', 'jest.config.ts', 'jest.config.js',
   'vitest.config.ts', '.env', '.env.local', '.env.production',
+  '.env.development', '.env.staging',
 ];
+const ROUTE_KEYS = new Set(['routes', 'route', 'api', 'endpoint', 'endpoints', 'path', 'paths', 'handler', 'handlers', 'url', 'urls']);
+const FLAG_KEYS = new Set(['features', 'feature', 'flags', 'flag', 'toggles', 'toggle', 'experiments', 'gates']);
 
 /**
  * Index configuration files in the workspace.
@@ -120,8 +123,10 @@ function flattenJson(
   for (const [key, value] of Object.entries(obj)) {
     const path = [...keyPath, key];
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      // Classify by key path
+      const kind = classifyConfigKind(path);
       entries.push({
-        filePath, line: 1, kind: 'config',
+        filePath, line: 1, kind,
         keyPath: path,
         text: `${path.join('.')}: ${value}`,
         tokens: tokenize(`${key} ${value}`),
@@ -180,6 +185,15 @@ function indexYamlLikeFile(filePath: string): ConfigIndexEntry[] {
   }
 
   return entries;
+}
+
+function classifyConfigKind(keyPath: string[]): ConfigIndexEntry['kind'] {
+  for (const k of keyPath) {
+    const lower = k.toLowerCase();
+    if (ROUTE_KEYS.has(lower)) return 'route';
+    if (FLAG_KEYS.has(lower)) return 'config';
+  }
+  return 'config';
 }
 
 function tokenize(text: string): string[] {
