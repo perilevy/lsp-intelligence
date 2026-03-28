@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies (clean)
         run: yarn install --frozen-lockfile
 
+      - name: Install test fixture dependencies
+        run: cd test-fixtures/monorepo && yarn install --frozen-lockfile
+
       - name: Typecheck
         run: yarn typecheck
 
@@ -34,12 +37,10 @@ jobs:
 
       - name: Verify no stale dist artifacts
         run: |
-          # findCodeByBehavior was removed in the redesign — must not exist in dist
           if ls dist/tools/composites/findCodeByBehavior* 2>/dev/null; then
             echo "ERROR: stale findCodeByBehavior artifacts in dist/"
             exit 1
           fi
-          # findCode must exist
           if ! ls dist/tools/composites/findCode.js 2>/dev/null; then
             echo "ERROR: findCode.js missing from dist/"
             exit 1
@@ -47,15 +48,15 @@ jobs:
 
       - name: Verify registered tool surface
         run: |
-          # Entry point must import findCode, not findCodeByBehavior
-          if grep -q 'findCodeByBehavior' dist/index.js; then
-            echo "ERROR: dist/index.js still references findCodeByBehavior"
-            exit 1
-          fi
-          if ! grep -q 'findCode' dist/index.js; then
-            echo "ERROR: dist/index.js does not reference findCode"
-            exit 1
-          fi
+          for tool in findCode findPattern rootCauseTrace apiGuard clearIndex; do
+            if ! grep -q "$tool" dist/index.js; then
+              echo "ERROR: $tool missing from dist/index.js"
+              exit 1
+            fi
+          done
 
       - name: Run tests
         run: yarn test
+
+      - name: Run search quality benchmarks
+        run: yarn bench

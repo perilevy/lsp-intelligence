@@ -1,5 +1,6 @@
 import type { QueryIR, QueryTraits, StructuralPredicate, SearchPlan } from '../types.js';
 import { scoreFamilies } from '../families/behaviorFamilies.js';
+import { applyPhraseRules } from './phraseRules.js';
 
 // Short family names (from find_code schema) → real family IDs
 const FAMILY_ALIASES: Record<string, string> = {
@@ -264,6 +265,12 @@ export function parseQuery(
     implementationRoot: /\b(real|actual|root|implementation|where.*(handled|defined|implemented))\b/.test(allLower),
     testIntent: /\b(test|spec|describe|it\s+should)\b/.test(allLower),
   };
+
+  // --- Phrase rules: infer additional structural predicates from multi-word combinations ---
+  const { added: phrasePredicates, reasons: phraseReasons } =
+    applyPhraseRules(structuralPredicates, [...nlTokens, ...codeTokens], phrases, traits);
+  structuralPredicates.push(...phrasePredicates);
+  routingReasons.push(...phraseReasons);
 
   return {
     raw,
