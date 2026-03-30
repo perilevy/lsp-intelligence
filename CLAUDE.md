@@ -12,7 +12,7 @@ Local code intelligence for real engineering workflows. **Find** code, **explain
 | Find structural patterns | `find_pattern` | — |
 | Trace root cause of an error | `root_cause_trace` | `/why` |
 | Check API contract changes | `api_guard` | `/api-check` |
-| Full pre-merge verification | — | `/verify` |
+| Full pre-merge verification | `verify_changes` | `/verify` |
 
 ## When to use LSP tools
 

@@ -45,6 +45,9 @@ import { findUnusedExports } from './tools/live/findUnusedExports.js';
 import { autoImport } from './tools/live/autoImport.js';
 import { clearIndex } from './tools/live/clearIndex.js';
 
+// Workflows
+import { verifyChangeSet } from './workflows/verifyChangeSet.js';
+
 const workspaceRoot = process.env.LSP_WORKSPACE_ROOT || process.cwd();
 
 async function main() {
@@ -91,6 +94,8 @@ async function main() {
     findUnusedExports,
     autoImport,
     clearIndex,
+    // Workflows
+    verifyChangeSet,
   ]);
 
   engine.initialize().catch((err) => {
