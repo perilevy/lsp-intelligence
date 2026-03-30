@@ -38,7 +38,7 @@ export interface RegExpSpec {
 export interface SearchRecipe {
   id: string;
   adapter: string;
-  retrievers: Array<'behavior' | 'identifier' | 'structural' | 'regex' | 'doc' | 'config'>;
+  retrievers: Array<'behavior' | 'identifier' | 'structural' | 'regex' | 'doc' | 'config' | 'route'>;
   exactIdentifiers?: string[];
   structuralPredicates?: StructuralPredicate[];
   regexes?: RegExpSpec[];
@@ -85,7 +85,7 @@ export interface QueryIR {
 
 export interface SearchPlan {
   mode: 'behavior' | 'identifier' | 'structural' | 'mixed';
-  retrievers: Array<'behavior' | 'identifier' | 'structural' | 'regex' | 'doc' | 'config'>;
+  retrievers: Array<'behavior' | 'identifier' | 'structural' | 'regex' | 'doc' | 'config' | 'route'>;
   reasons: string[];
   expandGraph: boolean;
 }
@@ -105,7 +105,7 @@ export interface SearchScope {
 // ============================================================================
 
 export interface CodeCandidate {
-  candidateType: 'declaration' | 'usage' | 'pattern' | 'doc' | 'config';
+  candidateType: 'declaration' | 'usage' | 'pattern' | 'doc' | 'config' | 'route';
 
   filePath: string;
   line: number;
@@ -124,7 +124,7 @@ export interface CodeCandidate {
   score: number;
   confidence?: 'high' | 'medium' | 'low';
   evidence: string[];
-  sources: Array<'behavior' | 'identifier' | 'structural' | 'doc' | 'config' | 'lsp' | 'graph'>;
+  sources: Array<'behavior' | 'identifier' | 'structural' | 'doc' | 'config' | 'route' | 'lsp' | 'graph'>;
 }
 
 /**
@@ -183,6 +183,17 @@ export interface ConfigIndexEntry {
   tokens: string[];
 }
 
+export interface RouteIndexEntry {
+  filePath: string;
+  line: number;
+  method?: string;
+  path?: string;
+  framework: 'express' | 'fastify' | 'next-app-router' | 'next-pages-api' | 'route-map' | 'unknown';
+  enclosingSymbol?: string;
+  tokens: string[];
+  text: string;
+}
+
 export interface IndexedFile {
   filePath: string;
   mtimeMs: number;
@@ -199,6 +210,7 @@ export interface WorkspaceIndex {
   usages: UsageIndexEntry[];
   docs: DocIndexEntry[];
   configs: ConfigIndexEntry[];
+  routes: RouteIndexEntry[];
   scopeCapped: boolean;
   capReason?: 'max-files' | 'max-depth';
 }
@@ -234,6 +246,7 @@ export interface FindCodeResult {
     regexHits: number;
     docHits: number;
     configHits: number;
+    routeHits: number;
     graphExpanded: number;
     lspEnriched: number;
     elapsedMs: number;

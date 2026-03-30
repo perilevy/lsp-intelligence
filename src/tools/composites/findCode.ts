@@ -9,6 +9,7 @@ import { retrieveIdentifierCandidates } from '../../search/retrievers/identifier
 import { retrieveStructuralCandidates } from '../../search/retrievers/structuralRetriever.js';
 import { retrieveDocCandidates } from '../../search/retrievers/docRetriever.js';
 import { retrieveConfigCandidates } from '../../search/retrievers/configRetriever.js';
+import { retrieveRouteCandidates } from '../../search/retrievers/routeRetriever.js';
 import { mergeCandidates } from '../../search/ranking/mergeCandidates.js';
 import { coalesceCandidates } from '../../search/ranking/coalesceCandidates.js';
 import { rankCandidates } from '../../search/ranking/rankCandidates.js';
@@ -67,7 +68,11 @@ export const findCode = defineTool({
       ? retrieveTextPatternCandidates(ir, scope, index, spec)
       : [];
 
-    const merged = mergeCandidates({ behavior, identifier, structural, regex, doc, config });
+    const route = plan.retrievers.includes('route')
+      ? retrieveRouteCandidates(spec, scope, index)
+      : [];
+
+    const merged = mergeCandidates({ behavior, identifier, structural, regex, doc, config, route });
     const coalesced = coalesceCandidates(merged);
     const ranked = await rankCandidates(coalesced, { ir, plan, engine, scope });
 
@@ -129,6 +134,7 @@ export const findCode = defineTool({
         regex: regex.length,
         doc: doc.length,
         config: config.length,
+        route: route.length,
       });
     }
 
@@ -149,6 +155,7 @@ export const findCode = defineTool({
         regexHits: regex.length,
         docHits: doc.length,
         configHits: config.length,
+        routeHits: route.length,
         graphExpanded,
         lspEnriched,
         elapsedMs: Date.now() - startTime,

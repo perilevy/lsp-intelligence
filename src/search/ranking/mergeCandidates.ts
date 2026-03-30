@@ -12,6 +12,7 @@ export function mergeCandidates(inputs: {
   regex: CodeCandidate[];
   doc: CodeCandidate[];
   config: CodeCandidate[];
+  route: CodeCandidate[];
 }): CodeCandidate[] {
   const merged = new Map<string, CodeCandidate>();
 
@@ -84,6 +85,21 @@ export function mergeCandidates(inputs: {
   for (const c of inputs.config) {
     const key = candidateKey(c);
     if (!merged.has(key)) {
+      merged.set(key, { ...c });
+    }
+  }
+
+  // Add route candidates — boost on overlap with behavior/identifier
+  for (const c of inputs.route) {
+    const key = candidateKey(c);
+    const existing = merged.get(key);
+    if (existing) {
+      existing.score += c.score + 3;
+      existing.evidence.push(...c.evidence, 'route-overlap');
+      for (const s of c.sources) {
+        if (!existing.sources.includes(s)) existing.sources.push(s);
+      }
+    } else {
       merged.set(key, { ...c });
     }
   }

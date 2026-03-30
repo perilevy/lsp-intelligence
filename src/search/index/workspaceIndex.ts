@@ -5,6 +5,7 @@ import { indexFileDeclarations } from './declarationIndex.js';
 import { indexFileUsages } from './usageIndex.js';
 import { indexFileDocs } from './docIndex.js';
 import { indexConfigFiles } from './configIndex.js';
+import { indexRoutes } from './routeIndex.js';
 import { parseSourceFile } from '../../analysis/ts/parseSourceFile.js';
 
 // Bump this when discovery/exclusion rules change to invalidate stale caches.
@@ -121,6 +122,7 @@ function buildFreshIndex(scope: SearchScope): WorkspaceIndex {
     usages: [],
     docs: [],
     configs: [],
+    routes: [],
     scopeCapped: scopeMeta.capped,
     capReason: scopeMeta.capReason,
   };
@@ -144,6 +146,7 @@ function rebuildFlatArrays(index: WorkspaceIndex, scope: SearchScope): void {
   index.usages = usages;
   index.docs = docs;
   index.configs = indexConfigFiles(scope);
+  index.routes = indexRoutes(scope);
   index.builtAt = Date.now();
 }
 

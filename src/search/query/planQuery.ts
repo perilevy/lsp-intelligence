@@ -72,12 +72,22 @@ export function planQuery(ir: QueryIR): SearchPlan {
     reasons.push(...recipe.reasons);
   }
 
-  // Config retriever for route/config/flag/env queries
-  if (ir.traits.routeLike || ir.traits.configLike) {
+  // Route retriever for endpoint/handler definition queries
+  if (ir.traits.routeLike) {
+    if (!retrievers.includes('route')) {
+      retrievers.push('route');
+      reasons.push('route trait detected — searching route definitions in code');
+    }
     if (!retrievers.includes('config')) {
       retrievers.push('config');
-      reasons.push('config/route trait detected — searching config files');
+      reasons.push('route trait detected — also searching config route maps');
     }
+  }
+
+  // Config retriever for config/flag/env queries
+  if (ir.traits.configLike && !retrievers.includes('config')) {
+    retrievers.push('config');
+    reasons.push('config trait detected — searching config files');
   }
 
   // Graph expansion for implementation-root queries
