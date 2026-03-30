@@ -260,7 +260,7 @@ Add to your `.mcp.json`:
   "mcpServers": {
     "lsp": {
       "command": "npx",
-      "args": ["--registry", "https://registry.npmjs.org", "-y", "lsp-intelligence"],
+      "args": ["-y", "lsp-intelligence"],
       "env": {
         "LSP_WORKSPACE_ROOT": "${CLAUDE_PROJECT_DIR}"
       }
