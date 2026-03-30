@@ -94,6 +94,25 @@ export function extractUsages(sf: ts.SourceFile): UsageIndexEntry[] {
       }
     }
 
+    // Env usage: process.env.X, import.meta.env.X
+    // Only match the exact env access (3 parts for process.env.X, 4 for import.meta.env.X)
+    // Skip if parent is also a PropertyAccessExpression (e.g. process.env.X.includes → skip, let process.env.X match)
+    if (ts.isPropertyAccessExpression(node) && !ts.isPropertyAccessExpression(node.parent)) {
+      const text = getPropertyAccessText(node);
+      const parts = text.split('.');
+      if (parts[0] === 'process' && parts[1] === 'env' && parts.length === 3) {
+        const envKey = parts[2];
+        const entry = makeUsage(`process.env.${envKey}`, envKey.toLowerCase(), 'env-usage', node, sf, filePath, pathToks, enclosingSymbol, enclosingKind);
+        entry.metadata = { envKey };
+        entries.push(entry);
+      } else if (parts[0] === 'import' && parts[1] === 'meta' && parts[2] === 'env' && parts.length === 4) {
+        const envKey = parts[3];
+        const entry = makeUsage(`import.meta.env.${envKey}`, envKey.toLowerCase(), 'env-usage', node, sf, filePath, pathToks, enclosingSymbol, enclosingKind);
+        entry.metadata = { envKey };
+        entries.push(entry);
+      }
+    }
+
     ts.forEachChild(node, visit);
 
     // Restore enclosing context on unwind

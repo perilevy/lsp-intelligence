@@ -153,13 +153,16 @@ export interface DeclarationIndexEntry {
 export interface UsageIndexEntry {
   identifier: string;
   normalizedIdentifier: string;
-  kind: 'call' | 'member-call' | 'identifier' | 'import' | 'jsx-tag';
+  kind: 'call' | 'member-call' | 'identifier' | 'import' | 'jsx-tag' | 'env-usage';
   filePath: string;
   line: number;
   column: number;
   enclosingSymbol?: string;
   enclosingKind?: string;
   pathTokens: string[];
+  metadata?: {
+    envKey?: string;
+  };
 }
 
 export interface DocIndexEntry {

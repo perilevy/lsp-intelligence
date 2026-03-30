@@ -2,59 +2,59 @@ import * as path from 'path';
 import ts from 'typescript';
 
 export const CODE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'] as const;
-export const CONFIG_EXTENSIONS = ['.json', '.yaml', '.yml', '.env', '.toml'] as const;
+export const CONFIG_EXTENSIONS = ['.json', '.yaml', '.yml', '.toml'] as const;
 
 const TEST_PATTERN = /\.(spec|test|stories)\.(ts|tsx|js|jsx|mjs|cjs)$/;
 
 // --- Directory exclusion ---
 
-/** Directories skipped by name (exact match against basename). */
 const SKIP_DIR_NAMES = new Set([
   'node_modules', 'dist', 'build', 'es', 'coverage',
   '__pycache__', '__generated__', '__mocks__',
 ]);
 
-/**
- * Should this directory be skipped during file discovery?
- * Matches: dot-prefixed dirs (.*), hardcoded names, and build output.
- */
 export function shouldSkipDir(dirName: string): boolean {
-  // Dot-prefixed: .yarn, .git, .cache, .vscode, .idea, .next, .turbo, etc.
   if (dirName.startsWith('.')) return true;
   return SKIP_DIR_NAMES.has(dirName);
 }
 
 // --- File exclusion ---
 
-/** Patterns for files that should never be indexed. */
 const SKIP_FILE_PATTERNS = [
-  /\.min\.(js|cjs|mjs)$/,     // Minified
-  /\.bundle\.(js|cjs|mjs)$/,  // Bundled
-  /\.map$/,                    // Source maps
-  /\.lock$/,                   // Lock files (yarn.lock, pnpm-lock, etc.)
-  /-lock\.json$/,              // package-lock.json, npm-shrinkwrap
+  /\.min\.(js|cjs|mjs)$/,
+  /\.bundle\.(js|cjs|mjs)$/,
+  /\.map$/,
+  /\.lock$/,
+  /-lock\.json$/,
 ];
 
-/** Maximum file size to index (bytes). Avoids 5MB vendored bundles. */
-const MAX_FILE_SIZE = 500_000; // 500 KB
+const MAX_FILE_SIZE = 500_000;
 
-/**
- * Should this file be skipped during discovery?
- * Checks extension patterns, size (if stat provided), and declaration files.
- */
 export function shouldSkipFile(filePath: string, sizeBytes?: number): boolean {
   const basename = path.basename(filePath);
-
-  // Declaration files
   if (basename.endsWith('.d.ts')) return true;
-
-  // Pattern-based exclusion
   if (SKIP_FILE_PATTERNS.some((p) => p.test(basename))) return true;
-
-  // Size guard
   if (sizeBytes !== undefined && sizeBytes > MAX_FILE_SIZE) return true;
-
   return false;
+}
+
+// --- Env file classification ---
+
+/** Real .env files that may contain secrets. Excluded from indexing by default. */
+export function isSecretEnvFile(filePath: string): boolean {
+  const basename = path.basename(filePath);
+  if (!basename.startsWith('.env')) return false;
+  // Allow safe templates/examples
+  if (isSafeEnvTemplateFile(filePath)) return false;
+  return true;
+}
+
+/** Non-secret env template/example files. Safe to index. */
+export function isSafeEnvTemplateFile(filePath: string): boolean {
+  const basename = path.basename(filePath).toLowerCase();
+  return basename === '.env.example' ||
+    basename === '.env.template' ||
+    basename === '.env.sample';
 }
 
 // --- Code/config/test classification ---
@@ -72,10 +72,6 @@ export function isTestFile(filePath: string): boolean {
   return TEST_PATTERN.test(path.basename(filePath));
 }
 
-/**
- * Map a file extension to the ts.ScriptKind the TypeScript compiler needs.
- * JS/MJS/CJS are parsed as JS; JSX as JSX; TS as TS; TSX as TSX.
- */
 export function scriptKindForFile(filePath: string): ts.ScriptKind {
   if (filePath.endsWith('.tsx')) return ts.ScriptKind.TSX;
   if (filePath.endsWith('.jsx')) return ts.ScriptKind.JSX;

@@ -1,14 +1,16 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { ConfigIndexEntry, SearchScope } from '../types.js';
-import { shouldSkipDir } from '../fileKinds.js';
+import { shouldSkipDir, isSecretEnvFile, isSafeEnvTemplateFile } from '../fileKinds.js';
 
-const CONFIG_EXTENSIONS = ['.json', '.yaml', '.yml', '.env', '.toml'];
+// Config file extensions to index. Does NOT include .env (handled separately).
+const CONFIG_EXTENSIONS = ['.json', '.yaml', '.yml', '.toml'];
 const CONFIG_FILENAMES = [
   'package.json', 'tsconfig.json', 'next.config.js', 'next.config.ts',
   'vite.config.ts', 'vite.config.js', 'jest.config.ts', 'jest.config.js',
-  'vitest.config.ts', '.env', '.env.local', '.env.production',
-  '.env.development', '.env.staging',
+  'vitest.config.ts',
+  // Safe env templates (no secrets)
+  '.env.example', '.env.template', '.env.sample',
 ];
 const ROUTE_KEYS = new Set(['routes', 'route', 'api', 'endpoint', 'endpoints', 'path', 'paths', 'handler', 'handlers', 'url', 'urls']);
 const FLAG_KEYS = new Set(['features', 'feature', 'flags', 'flag', 'toggles', 'toggle', 'experiments', 'gates']);
@@ -60,8 +62,10 @@ function collectConfigFiles(dir: string, files: string[], maxFiles: number, dept
       } else if (
         CONFIG_FILENAMES.includes(entry) ||
         CONFIG_EXTENSIONS.some((e) => entry.endsWith(e)) ||
-        entry.startsWith('.env')
+        isSafeEnvTemplateFile(full)
       ) {
+        // Exclude secret-bearing .env files
+        if (isSecretEnvFile(full)) continue;
         files.push(full);
       }
     }

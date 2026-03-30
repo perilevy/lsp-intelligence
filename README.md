@@ -187,7 +187,7 @@ Post-edit verification.
 | **Identifier / API usage** | `useEffect`, `Promise.all` | Usage index → exact call/import sites with enclosing context |
 | **Structural** | `useEffect that returns cleanup conditionally` | Identifier + structural predicates → AST evaluation on located nodes |
 | **Behavior / entrypoint** | `where do we validate permissions` | Fielded BM25 over declarations + JSDoc/comments + family hints |
-| **Config / route / flag** | `where is the feature flag configured` | Config index → JSON/YAML/env/package.json entries |
+| **Config / route / flag** | `where is the feature flag configured` | Config index → JSON/YAML/package.json + env usage in code |
 | **Implementation root** | `where is this actually implemented` | Graph expansion → wrapper detection → root promotion |
 
 ## Architecture
@@ -320,6 +320,7 @@ Tests verify cross-package reference resolution, symbol-name lookup, type alias 
 - **Not a universal semantic search engine.** Strong on code structure, API usage, configs, and known patterns. Does not understand arbitrary business logic.
 - **Not a replacement for full-text search.** Use grep for literal string matching. `find_code` uses text patterns internally but optimizes for code-aware ranking.
 - **Not an AI model.** All intelligence is local: AST analysis, LSP queries, fielded text ranking, adapter recipes. No paid API calls, no external services.
+- **Does not index secret-bearing `.env` files.** Env variable usage in code (`process.env.X`, `import.meta.env.X`) is indexed and searchable. Non-secret template/example files (`.env.example`, `.env.template`) are indexed. Real `.env` files are excluded by default.
 
 ## Dependencies
 
