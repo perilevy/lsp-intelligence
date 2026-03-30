@@ -53,11 +53,16 @@ export async function expandToImplementationRoots(
       const leafTarget = wrapperInfo.callTarget.split('.').pop() ?? wrapperInfo.callTarget;
       if (BUILTIN_DENYLIST.has(leafTarget)) continue;
 
-      // Demote wrapper
+      // Demote wrapper — strength based on confidence
       const wrapperKey = absoluteCandidateKey(candidate);
+      const demoteScore = Math.round(-2 * wrapperInfo.wrapperConfidence);
       promoted.set(wrapperKey, {
-        scoreDelta: -2,
-        evidence: [`wrapper-of: ${wrapperInfo.callTarget}`, `body-size: ${wrapperInfo.bodySize}`],
+        scoreDelta: demoteScore,
+        evidence: [
+          `wrapper-of: ${wrapperInfo.callTarget}`,
+          `body-size: ${wrapperInfo.bodySize}`,
+          `wrapper-confidence: ${wrapperInfo.wrapperConfidence.toFixed(1)}`,
+        ],
       });
 
       // Try to resolve the wrapped function via LSP and promote it
@@ -73,9 +78,14 @@ export async function expandToImplementationRoots(
           const derivedKey = lspLocationToKey(loc.uri, loc.position.line, engine.workspaceRoot, wrapperInfo.callTarget);
 
           if (!promoted.has(derivedKey)) {
+            const promoteScore = Math.round(4 * wrapperInfo.wrapperConfidence);
             promoted.set(derivedKey, {
-              scoreDelta: 4,
-              evidence: ['implementation-root', `wrapped-by: ${candidate.symbol ?? 'unknown'}`],
+              scoreDelta: promoteScore,
+              evidence: [
+                'implementation-root',
+                `wrapped-by: ${candidate.symbol ?? 'unknown'}`,
+                `wrapper-confidence: ${wrapperInfo.wrapperConfidence.toFixed(1)}`,
+              ],
             });
 
             // Create a derived candidate so it can be merged into results
@@ -93,8 +103,13 @@ export async function expandToImplementationRoots(
               kind: 'function',
               snippet,
               context,
-              score: candidate.score + 4,
-              evidence: ['implementation-root', `wrapped-by: ${candidate.symbol ?? 'unknown'}`, 'graph-derived'],
+              score: candidate.score + promoteScore,
+              evidence: [
+                'implementation-root',
+                `wrapped-by: ${candidate.symbol ?? 'unknown'}`,
+                `wrapper-confidence: ${wrapperInfo.wrapperConfidence.toFixed(1)}`,
+                'graph-derived',
+              ],
               sources: ['graph'],
             });
           }
@@ -113,6 +128,8 @@ export async function expandToImplementationRoots(
 interface WrapperInfo {
   callTarget: string;
   bodySize: number;
+  /** 0-1 confidence that this is truly a wrapper. Higher = more likely. */
+  wrapperConfidence: number;
 }
 
 function detectWrapper(filePath: string, line: number): WrapperInfo | null {
@@ -164,7 +181,13 @@ function detectWrapper(filePath: string, line: number): WrapperInfo | null {
 
   if (callTargets.length === 0 || callTargets.length > 3) return null;
 
-  return { callTarget: callTargets[0], bodySize };
+  // Confidence: 1 call + 1-2 statements = high, more calls/statements = lower
+  const wrapperConfidence = callTargets.length === 1 && bodySize <= 2 ? 0.9
+    : callTargets.length === 1 ? 0.7
+    : callTargets.length === 2 && bodySize <= 3 ? 0.5
+    : 0.3;
+
+  return { callTarget: callTargets[0], bodySize, wrapperConfidence };
 }
 
 function getBody(node: ts.Node): ts.Block | ts.ConciseBody | null {
