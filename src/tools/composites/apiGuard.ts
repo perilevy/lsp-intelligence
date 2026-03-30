@@ -96,7 +96,7 @@ export const apiGuard = defineTool({
     for (const filePath of scopeFiles) {
       try {
         const currentContent = fs.readFileSync(filePath, 'utf-8');
-        const currentRoot = parseSource(currentContent, filePath.endsWith('.tsx'));
+        const currentRoot = parseSource(currentContent, filePath);
         const currentExports = currentRoot
           ? (astUsed = true, extractExportDeclarations(currentRoot, currentContent))
           : extractExportDeclarations(null, currentContent);
@@ -108,7 +108,7 @@ export const apiGuard = defineTool({
         if (base) {
           const baseContent = getBaseFileContent(filePath, base, engine.workspaceRoot);
           if (baseContent) {
-            const baseRoot = parseSource(baseContent, filePath.endsWith('.tsx'));
+            const baseRoot = parseSource(baseContent, filePath);
             baseExports = baseRoot
               ? extractExportDeclarations(baseRoot, baseContent)
               : extractExportDeclarations(null, baseContent);

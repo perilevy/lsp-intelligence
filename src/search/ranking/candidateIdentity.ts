@@ -1,11 +1,11 @@
 import * as path from 'path';
 
 /**
- * Canonical absolute candidate identity.
+ * Canonical candidate identity key.
  * Used consistently across merge, coalesce, graph expansion, and ranking.
  *
- * Format: absoluteFilePath:line1based:symbol
- * This is the ONLY key format used for candidate matching.
+ * Format: filePath:line1based:symbol
+ * Both functions produce the same format so keys match across subsystems.
  */
 export function absoluteCandidateKey(input: {
   filePath: string;
@@ -13,15 +13,16 @@ export function absoluteCandidateKey(input: {
   symbol?: string;
   matchedIdentifier?: string;
 }): string {
-  // Normalize to absolute path if not already
-  const absPath = path.isAbsolute(input.filePath) ? input.filePath : input.filePath;
   const symbol = input.symbol ?? input.matchedIdentifier ?? '';
-  return `${absPath}:${input.line}:${symbol}`;
+  return `${input.filePath}:${input.line}:${symbol}`;
 }
 
 /**
  * Convert an LSP URI + 0-based position to the candidate key format.
  * Used by graph expansion to generate keys that match candidate keys.
+ *
+ * Produces workspace-relative paths to match candidates after ranking
+ * (which relativizes paths via relativePath()).
  */
 export function lspLocationToKey(
   uri: string,
@@ -29,13 +30,11 @@ export function lspLocationToKey(
   workspaceRoot: string,
   symbol?: string,
 ): string {
-  // Convert file:// URI to absolute path
   let absPath = uri;
   if (uri.startsWith('file://')) {
     absPath = decodeURIComponent(uri.replace(/^file:\/\//, ''));
   }
 
-  // Make relative to workspace for consistency with post-ranking paths
   const rel = path.relative(workspaceRoot, absPath);
   const line1 = line0 + 1;
   return `${rel}:${line1}:${symbol ?? ''}`;
