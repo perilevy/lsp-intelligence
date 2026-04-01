@@ -1,4 +1,6 @@
 node_modules
 dist
+.runtime
+.linux-x64
 *.tsbuildinfo
 yarn-error.log

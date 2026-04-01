@@ -1,0 +1,6 @@
+{
+  "name": "lsp-intelligence-plugin",
+  "version": "0.2.2-beta.1",
+  "private": true,
+  "description": "Claude Code plugin for lsp-intelligence — skills, hooks, and runtime management"
+}

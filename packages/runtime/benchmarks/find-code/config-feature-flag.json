@@ -1,0 +1,12 @@
+{
+  "id": "config-feature-flag",
+  "category": "config",
+  "query": "where is the feature flag configured",
+  "fixture": "config-app",
+  "expected": {
+    "retrievers": ["config"],
+    "topFiles": ["config.json"],
+    "confidenceFloor": "low"
+  },
+  "notes": "Config query — should route to config retriever via configLike trait."
+}

@@ -1,0 +1,43 @@
+{
+  "name": "lsp-intelligence",
+  "version": "0.2.2-beta.1",
+  "description": "LSP-powered code intelligence MCP server for AI coding agents",
+  "type": "module",
+  "bin": {
+    "lsp-intelligence": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "rm -rf dist && tsc",
+    "prepack": "npm run clean && npm run build",
+    "start": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "bench": "tsx benchmarks/run.ts",
+    "bench:e2e": "tsx benchmarks/run.ts --e2e"
+  },
+  "dependencies": {
+    "@ast-grep/napi": "^0.42.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "typescript": "^5.4.0",
+    "typescript-language-server": "^4.0.0",
+    "vscode-jsonrpc": "^8.2.0",
+    "vscode-languageserver-protocol": "^3.17.5",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

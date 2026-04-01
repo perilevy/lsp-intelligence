@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "lsp-intelligence",
-      "source": "./packages/plugin",
+      "source": "./",
       "description": "Type-aware code intelligence — unified code search, impact analysis, semantic diff, and context building via LSP",
       "version": "0.2.2-beta.1"
     }
