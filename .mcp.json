@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "lsp": {
-      "command": "/bin/sh",
-      "args": ["-c", "WORKSPACE=\"$PWD\" && cd \"${CLAUDE_PLUGIN_ROOT}\" && (test -d node_modules/@modelcontextprotocol || npm install --omit=dev >/dev/null 2>/dev/null) && LSP_WORKSPACE_ROOT=\"$WORKSPACE\" exec node dist/index.js"]
-    }
-  }
-}
