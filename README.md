@@ -36,9 +36,9 @@ Or get a file overview without reading it:
 
 ## Installation
 
-Requires **Node.js 20+**. Dependencies are installed automatically on first session start.
+Requires **Node.js 20+**.
 
-### Option 1: CLI (recommended)
+### Option 1: Plugin install (recommended)
 
 Add the marketplace and install the plugin:
 
@@ -48,9 +48,15 @@ Add the marketplace and install the plugin:
 /reload-plugins
 ```
 
+The runtime is installed automatically on first session start. If auto-setup doesn't work (enterprise proxy, timeout), run once:
+
+```bash
+node ~/.claude/plugins/cache/lsp-intelligence/lsp-intelligence/*/scripts/install-runtime.mjs
+```
+
 ### Option 2: Project configuration (team setup)
 
-Add to your project's `.claude/settings.json` — any teammate who clones the repo gets it automatically:
+Add to your project's `.claude/settings.json`:
 
 ```json
 {
@@ -68,19 +74,36 @@ Add to your project's `.claude/settings.json` — any teammate who clones the re
 }
 ```
 
-### Option 3: npm source
+### Option 3: MCP server only (no plugin)
 
-Use npm source in `marketplace.json` for version pinning and built-in dependency resolution:
+For other AI agents or if you only want the raw MCP tools:
 
 ```json
 {
-  "name": "lsp-intelligence",
-  "source": {
-    "source": "npm",
-    "package": "lsp-intelligence",
-    "version": "0.2.0"
+  "mcpServers": {
+    "lsp": {
+      "command": "npx",
+      "args": ["-y", "lsp-intelligence"],
+      "env": { "LSP_WORKSPACE_ROOT": "${CLAUDE_PROJECT_DIR}" }
+    }
   }
 }
+```
+
+### Troubleshooting
+
+If the MCP server doesn't connect:
+
+```bash
+# Check runtime health
+node ~/.claude/plugins/cache/lsp-intelligence/lsp-intelligence/*/scripts/doctor-runtime.mjs
+
+# Reinstall runtime
+node ~/.claude/plugins/cache/lsp-intelligence/lsp-intelligence/*/scripts/install-runtime.mjs
+
+# Or install globally
+npm install -g lsp-intelligence@0.2.2-beta.1
+```
 ```
 
 ## Capabilities
