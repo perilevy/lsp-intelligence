@@ -6,8 +6,9 @@
       "name": "lsp-intelligence",
       "description": "Local code intelligence for TypeScript/JavaScript — Find code, explain failures, guard API contracts, simulate changes.",
       "source": {
-        "source": "npm",
-        "package": "lsp-intelligence"
+        "source": "git-subdir",
+        "url": "https://github.com/perilevy1/lsp-intelligence.git",
+        "path": "packages/runtime"
       }
     }
   ]
