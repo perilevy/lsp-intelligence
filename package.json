@@ -1,7 +1,8 @@
 {
   "name": "lsp-intelligence",
   "version": "0.3.0",
-  "description": "LSP-powered code intelligence MCP server for AI coding agents",
+  "private": true,
+  "description": "LSP-powered code intelligence MCP server for AI coding agents — development root (publish from packages/runtime/)",
   "type": "module",
   "bin": {
     "lsp-intelligence": "./dist/index.js"
