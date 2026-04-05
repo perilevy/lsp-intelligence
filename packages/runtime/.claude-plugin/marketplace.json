@@ -1,0 +1,14 @@
+{
+  "name": "lsp-intelligence-marketplace",
+  "description": "Official marketplace for the lsp-intelligence Claude Code plugin",
+  "plugins": [
+    {
+      "name": "lsp-intelligence",
+      "description": "Local code intelligence for TypeScript/JavaScript — Find code, explain failures, guard API contracts, simulate changes.",
+      "source": {
+        "source": "npm",
+        "package": "lsp-intelligence"
+      }
+    }
+  ]
+}
