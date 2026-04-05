@@ -1,8 +1,0 @@
-{
-  "name": "lsp-intelligence",
-  "version": "0.2.2-beta.1",
-  "description": "Type-aware code intelligence — unified code search, impact analysis, semantic diff, and context building via LSP",
-  "author": {
-    "name": "Peri Levy"
-  }
-}

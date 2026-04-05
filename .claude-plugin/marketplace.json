@@ -1,14 +1,15 @@
 {
-  "name": "lsp-intelligence",
-  "owner": {
-    "name": "Peri Levy"
-  },
+  "name": "lsp-intelligence-marketplace",
+  "description": "Official marketplace for the lsp-intelligence Claude Code plugin",
   "plugins": [
     {
       "name": "lsp-intelligence",
-      "source": "./packages/plugin",
-      "description": "Type-aware code intelligence — unified code search, impact analysis, semantic diff, and context building via LSP",
-      "version": "0.2.2-beta.1"
+      "description": "Local code intelligence for TypeScript/JavaScript — Find code, explain failures, guard API contracts, simulate changes.",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/perilevy1/lsp-intelligence.git",
+        "path": "packages/runtime"
+      }
     }
   ]
 }
