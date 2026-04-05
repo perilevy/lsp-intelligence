@@ -1,0 +1,11 @@
+{
+  "id": "usage-query",
+  "category": "usage",
+  "query": "where is createSDK called",
+  "fixture": "monorepo",
+  "expected": {
+    "topFiles": ["ItemList.ts"],
+    "confidenceFloor": "low"
+  },
+  "notes": "Usage query for a known symbol — should find ItemList.ts which imports and calls createSDK."
+}

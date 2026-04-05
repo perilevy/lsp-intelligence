@@ -2,7 +2,7 @@
 
 Local code intelligence for real engineering workflows. **Find** code, **explain** failures, **guard** API contracts.
 
-> **Note:** The first query in a session takes ~10s while the TypeScript engine warms up. Subsequent queries are 100-300ms. This is normal.
+> **Note:** The first query in a new session may take a few seconds while the TypeScript engine warms up. The workspace index is persisted and loads instantly on repeat sessions. Subsequent queries are 100-300ms.
 
 ## Primary tools
 

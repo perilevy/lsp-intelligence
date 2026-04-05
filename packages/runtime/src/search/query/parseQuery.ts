@@ -255,13 +255,19 @@ export function parseQuery(
   const allLower = raw.toLowerCase();
   const isConfigFocus = opts?.forcedFocus === 'config';
   const hasHookIdentifier = exactIdentifiers.some((id) => /^use[A-Z]/.test(id));
+
+  // Detect env-key-like tokens: SCREAMING_SNAKE_CASE with at least one underscore
+  // Matches: API_BASE_URL, DATABASE_URL, NEXT_PUBLIC_KEY, VITE_APP_URL, FEATURE_FLAG_X
+  const envKeyTokens = words.filter((w) => /^[A-Z][A-Z0-9_]{2,}$/.test(w) && w.includes('_'));
+
   const traits: QueryTraits = {
     reactLike: hasHookIdentifier || /\b(react|component|jsx|hook|use[A-Z])\b/.test(allLower),
     stateLike: /\b(state|set[A-Z]\w*|useState|reducer|dispatch)\b/.test(allLower),
     previousStateLike: /\b(prev|previous|current|existing|old)\b.*\b(state)\b/.test(allLower)
       || /\bbased on (prev|previous|current)\b/.test(allLower),
     routeLike: isConfigFocus || /\b(route|endpoint|url|path|api|handler)\b/.test(allLower),
-    configLike: isConfigFocus || /\b(config|env|flag|toggle|setting|variable|secret)\b/.test(allLower),
+    configLike: isConfigFocus || envKeyTokens.length > 0
+      || /\b(config|env|flag|toggle|setting|variable|secret)\b/.test(allLower),
     implementationRoot: /\b(real|actual|root|implementation|where.*(handled|defined|implemented))\b/.test(allLower),
     testIntent: /\b(test|spec|describe|it\s+should)\b/.test(allLower),
   };

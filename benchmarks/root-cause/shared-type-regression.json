@@ -1,16 +1,16 @@
 {
   "id": "shared-type-regression",
   "category": "type-change",
-  "description": "A shared type in packages/types is changed (field removed), causing downstream errors in packages/app",
-  "fixture": "monorepo",
+  "description": "A shared function gains a required parameter, causing TS2554 at the call site",
+  "fixture": "standalone",
   "input": {
-    "file_path": "packages/app/src/ItemList.ts",
-    "diagnostic_code": "TS2339"
+    "file_path": "src/ItemList.ts",
+    "diagnostic_code": "TS2554"
   },
   "expected": {
-    "topCandidateFile": "packages/types/src/index.ts",
-    "explanation_contains": ["type", "changed", "removed"],
+    "topCandidateFile": "src/types.ts",
+    "explanation_contains": ["definition-site", "changed"],
     "confidence_floor": "medium"
   },
-  "notes": "Classic monorepo regression: upstream type change breaks downstream consumer."
+  "notes": "renderItem in types.ts gained a required options parameter — call site in ItemList.ts gets TS2554. Definition traces to types.ts."
 }

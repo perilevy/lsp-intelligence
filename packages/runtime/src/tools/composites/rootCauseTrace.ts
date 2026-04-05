@@ -3,13 +3,17 @@ import * as fs from 'fs';
 import { defineTool } from '../registry.js';
 import { relativePath, uriToPath, pathToUri, fromPosition } from '../../engine/positions.js';
 import { formatHover } from '../../format/markdown.js';
-import { parseFile, parseSource } from '../../ast/parseFile.js';
+import { parseFile } from '../../ast/parseFile.js';
 import { classifyErrorSite } from '../../ast/findNodeAtPosition.js';
-import { extractExportDeclarations } from '../../ast/extractExportDeclarations.js';
-import { diffExportDeclarations } from '../../ast/diffDeclarationShapes.js';
+import { parseSourceContent } from '../../analysis/ts/parseSourceFile.js';
+import { extractExports } from '../../analysis/ts/extractExports.js';
+import { extractDeclarationShape } from '../../analysis/ts/extractDeclarationShape.js';
+import { diffExportSets } from '../../analysis/ts/diffDeclarationShape.js';
 import { getMergeBase } from '../../git/getMergeBase.js';
 import { getBaseFileContent } from '../../git/getBaseFileContent.js';
 import { fileChangedInBranch } from '../../git/getChangedHunks.js';
+import { programManager } from '../../analysis/ts/program/ProgramManager.js';
+import { getAllSwitchResults } from '../../analysis/ts/exhaustiveness.js';
 import { resolveTarget, pickDiagnostic, type ToolTargetInput } from '../../resolve/targetResolver.js';
 import type { Location, Hover, CallHierarchyItem, CallHierarchyIncomingCall } from 'vscode-languageserver-protocol';
 import { DEFAULT_TIMEOUTS } from '../../engine/types.js';
@@ -102,7 +106,8 @@ export const rootCauseTrace = defineTool({
     }
 
     const hoverSummary = hoverResult ? formatHover(hoverResult).substring(0, 200) : undefined;
-    const defLocation = defResult ? uriToPath(Array.isArray(defResult) ? defResult[0].uri : defResult.uri) : undefined;
+    const firstDef = Array.isArray(defResult) ? defResult[0] : defResult;
+    const defLocation = firstDef ? uriToPath(firstDef.uri) : undefined;
 
     const errorSite = {
       symbol: symbolName,
@@ -125,8 +130,9 @@ export const rootCauseTrace = defineTool({
       const typeDef = await engine.request<Location | Location[] | null>(
         'textDocument/typeDefinition', { textDocument: { uri }, position: errorPosition }, timeout,
       );
-      if (typeDef) {
-        const typeDefPath = uriToPath(Array.isArray(typeDef) ? typeDef[0].uri : typeDef.uri);
+      const firstTypeDef = Array.isArray(typeDef) ? typeDef[0] : typeDef;
+      if (firstTypeDef) {
+        const typeDefPath = uriToPath(firstTypeDef.uri);
         if (typeDefPath !== filePath && typeDefPath !== defLocation) {
           candidates.push(await buildCandidate(typeDefPath, 'type-definition', 4, base, engine, warnings));
         }
@@ -203,12 +209,66 @@ export const rootCauseTrace = defineTool({
       errorSite,
       candidates: sorted,
       topCandidate,
-      nextVerificationStep: topCandidate ? `Run impact_trace on ${relativePath(topCandidate.filePath, engine.workspaceRoot)}` : undefined,
+      nextVerificationStep: topCandidate ? buildNextStep(topCandidate, engine.workspaceRoot) : undefined,
       stats: { candidatesConsidered: candidates.length, callerFilesChecked, astUsed, baseUsed: !!base, partialResult: callerFilesChecked >= 5 },
       warnings,
     } satisfies RootCauseTraceResult;
   },
 });
+
+/**
+ * Phase 3C: Generate a specific, actionable next-verification step based on
+ * what the root cause analysis found. Goes beyond the generic "run impact_trace"
+ * to tell the developer exactly what to check.
+ */
+function buildNextStep(candidate: RootCauseCandidate, workspaceRoot: string): string {
+  const relPath = relativePath(candidate.filePath, workspaceRoot);
+  const sc = candidate.structuralChange ?? '';
+
+  // Param change → find callers
+  if (sc.includes('param_required')) {
+    const match = sc.match(/param_required:\s*(\w+)/);
+    const func = match?.[1];
+    return func
+      ? `Find all callers of \`${func}\` — some will need a new required argument`
+      : `Check all callers of the changed function in ${relPath}`;
+  }
+  if (sc.includes('param_removed')) {
+    return `Check all call sites in files that import from ${relPath} — a parameter was removed`;
+  }
+
+  // Enum change → check switch statements
+  if (sc.includes('enum_member_removed')) {
+    const match = sc.match(/enum_member_removed:\s*(\w+)/);
+    return match
+      ? `Find all switch statements and comparisons using \`${match[1]}\` — the removed member may be referenced`
+      : `Check switch statements over the changed enum in files importing from ${relPath}`;
+  }
+  if (sc.includes('enum_member_added')) {
+    const match = sc.match(/enum_member_added:\s*(\w+)/);
+    return match
+      ? `Check exhaustive switch statements over \`${match[1]}\` — they may need a new case`
+      : `Check exhaustive switch statements in files importing from ${relPath}`;
+  }
+
+  // Interface change → find implementors
+  if (sc.includes('interface_shape_changed')) {
+    return `Find all objects implementing the changed interface in ${relPath} and update required fields`;
+  }
+
+  // Return type change → check callers
+  if (sc.includes('return_type_changed')) {
+    return `Check code that uses the return value from the changed function in ${relPath}`;
+  }
+
+  // Generic removal
+  if (sc.includes('removed')) {
+    return `Find all imports of the removed export in ${relPath} and update them`;
+  }
+
+  // Fallback
+  return `Run impact_trace on ${relPath} to find all affected files`;
+}
 
 async function buildCandidate(
   candidatePath: string,
@@ -229,7 +289,32 @@ async function buildCandidate(
     if (base) {
       try {
         const sc = classifyDeclarationChange(candidatePath, base, engine.workspaceRoot);
-        if (sc) { score += 5; evidence.push(`structural-change: ${sc}`); structuralChange = sc; }
+        if (sc) {
+          score += 5;
+          evidence.push(`structural-change: ${sc}`);
+          structuralChange = sc;
+
+          // Phase 2D: for enum changes, find affected switches in the workspace
+          if (sc.includes('enum_member')) {
+            try {
+              const tsProgram = programManager.getOrBuild(engine.workspaceRoot);
+              // Extract the enum name from the structural change string (e.g. "enum_member_removed: ItemStatus")
+              const enumMatch = sc.match(/enum_member_(?:removed|added):\s*(\w+)/);
+              if (enumMatch) {
+                const enumName = enumMatch[1];
+                const switches = getAllSwitchResults(tsProgram, candidatePath, enumName);
+                const nonExhaustive = switches.filter((s) => !s.isExhaustive);
+                if (nonExhaustive.length > 0) {
+                  score += 3;
+                  const fileList = [...new Set(nonExhaustive.map((s) => relativePath(s.filePath, engine.workspaceRoot)))].slice(0, 2).join(', ');
+                  evidence.push(`exhaustiveness: ${nonExhaustive.length} affected switch(es) → ${fileList}`);
+                }
+              }
+            } catch {
+              // Exhaustiveness enrichment is best-effort
+            }
+          }
+        }
       } catch (err) {
         warnings.push(`Structural classification failed for ${relativePath(candidatePath, engine.workspaceRoot)}: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -248,10 +333,12 @@ function classifyDeclarationChange(filePath: string, base: string, workspaceRoot
   const baseContent = getBaseFileContent(filePath, base, workspaceRoot);
   if (!baseContent) return null;
   const currentContent = fs.readFileSync(filePath, 'utf-8');
-  const baseRoot = parseSource(baseContent, filePath.endsWith('.tsx'));
-  const currentRoot = parseSource(currentContent, filePath.endsWith('.tsx'));
-  const baseExports = extractExportDeclarations(baseRoot, baseContent);
-  const currentExports = extractExportDeclarations(currentRoot, currentContent);
-  const diffs = diffExportDeclarations(baseExports, currentExports);
-  return diffs.length > 0 ? diffs.map((d) => `${d.kind}: ${d.name}`).join(', ') : null;
+  const baseSf = parseSourceContent(baseContent, filePath);
+  const currentSf = parseSourceContent(currentContent, filePath);
+  const baseShapes = extractExports(baseSf).map((e) => extractDeclarationShape(baseSf, e));
+  const currentShapes = extractExports(currentSf).map((e) => extractDeclarationShape(currentSf, e));
+  const diffs = diffExportSets(baseShapes, currentShapes);
+  return diffs.length > 0
+    ? diffs.map((d) => `${d.diffs[0]?.kind ?? d.status}: ${d.name}`).join(', ')
+    : null;
 }

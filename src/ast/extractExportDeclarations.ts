@@ -38,7 +38,9 @@ function extractWithAst(root: SgNode, source: string): ExportDeclaration[] {
   // Find all exported declarations using ast-grep patterns
   const patterns = [
     { pattern: 'export function $NAME($$$) { $$$ }', kind: 'function' as const },
+    { pattern: 'export function $NAME($$$): $RTYPE { $$$ }', kind: 'function' as const },
     { pattern: 'export async function $NAME($$$) { $$$ }', kind: 'function' as const },
+    { pattern: 'export async function $NAME($$$): $RTYPE { $$$ }', kind: 'function' as const },
     { pattern: 'export const $NAME = $$$', kind: 'const' as const },
     { pattern: 'export let $NAME = $$$', kind: 'variable' as const },
     { pattern: 'export interface $NAME { $$$ }', kind: 'interface' as const },
@@ -47,6 +49,7 @@ function extractWithAst(root: SgNode, source: string): ExportDeclaration[] {
     { pattern: 'export class $NAME { $$$ }', kind: 'class' as const },
     { pattern: 'export abstract class $NAME { $$$ }', kind: 'class' as const },
     { pattern: 'export default function $NAME($$$) { $$$ }', kind: 'function' as const },
+    { pattern: 'export default function $NAME($$$): $RTYPE { $$$ }', kind: 'function' as const },
   ];
 
   for (const { pattern, kind } of patterns) {
@@ -233,8 +236,11 @@ function extractBlockMembersFromLines(lines: string[], startLine: number): strin
     if (lines[i].includes('{')) { started = true; braceCount++; }
     if (lines[i].includes('}')) braceCount--;
     if (started && braceCount > 0) {
-      const memberMatch = lines[i].trim().match(/^(\w+)\s*[?:=,]/);
-      if (memberMatch && memberMatch[1] !== 'export') members.push(memberMatch[1]);
+      // Capture optional marker: `name?: Type` → "name?", `name: Type` → "name"
+      const memberMatch = lines[i].trim().match(/^(\w+)(\?)?\s*[:=,]/);
+      if (memberMatch && memberMatch[1] !== 'export') {
+        members.push(memberMatch[2] ? `${memberMatch[1]}?` : memberMatch[1]);
+      }
     }
     if (started && braceCount === 0) break;
   }

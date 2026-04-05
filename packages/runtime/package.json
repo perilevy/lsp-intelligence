@@ -1,6 +1,6 @@
 {
   "name": "lsp-intelligence",
-  "version": "0.2.2-beta.1",
+  "version": "0.3.0",
   "description": "LSP-powered code intelligence MCP server for AI coding agents",
   "type": "module",
   "bin": {

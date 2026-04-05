@@ -2,15 +2,14 @@
   "id": "barrel-reexport-change",
   "category": "breaking",
   "description": "A symbol is removed from a barrel/index.ts re-export, breaking downstream packages",
-  "fixture": "monorepo",
+  "fixture": "standalone",
   "input": {
-    "file_path": "packages/core/src/index.ts",
     "scope": "changed"
   },
   "expected": {
     "risk": "high",
     "semver": "major",
-    "explanation_contains": ["re-export", "removed"]
+    "explanation_contains": ["reexport", "removed"]
   },
   "notes": "Barrel re-export removals are the most common accidental breaking change in monorepos."
 }

@@ -47,6 +47,7 @@ import { clearIndex } from './tools/live/clearIndex.js';
 
 // Workflows
 import { verifyChangeSet } from './workflows/verifyChangeSet.js';
+import { simulateChange } from './workflows/simulateChange.js';
 
 const workspaceRoot = process.env.LSP_WORKSPACE_ROOT || process.cwd();
 
@@ -96,6 +97,7 @@ async function main() {
     clearIndex,
     // Workflows
     verifyChangeSet,
+    simulateChange,
   ]);
 
   engine.initialize().catch((err) => {

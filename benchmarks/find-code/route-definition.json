@@ -1,0 +1,11 @@
+{
+  "id": "route-definition",
+  "category": "route",
+  "query": "where is GET /api/users handled",
+  "fixture": "js-web",
+  "expected": {
+    "topFiles": ["routes.js"],
+    "confidenceFloor": "low"
+  },
+  "notes": "Route-definition query for a specific HTTP endpoint — should find the Express GET handler in routes.js."
+}

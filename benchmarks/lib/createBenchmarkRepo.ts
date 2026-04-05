@@ -24,7 +24,10 @@ export async function createBenchmarkRepo(caseDir: string): Promise<BenchmarkRep
     throw new Error(`Benchmark case missing base/ or head/ at ${caseDir}`);
   }
 
-  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lsp-bench-'));
+  // Use realpathSync to get the canonical path — on macOS /tmp is a symlink
+  // and git rev-parse --show-toplevel returns the resolved path, so the two
+  // must match for path-prefix filters inside getChangedFiles to work.
+  const tmpRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'lsp-bench-')));
 
   // Copy base
   copyDir(baseDir, tmpRoot);

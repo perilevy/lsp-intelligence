@@ -21,6 +21,7 @@ import { absoluteCandidateKey } from '../../search/ranking/candidateIdentity.js'
 import { buildDebugTrace } from '../../search/debug/trace.js';
 import { relativePath } from '../../engine/positions.js';
 import type { FindCodeResult, FindCodeDebugInfo } from '../../search/types.js';
+import { buildSnapshotResolver } from '../../session/SnapshotResolver.js';
 
 export const findCode = defineTool({
   name: 'find_code',
@@ -41,7 +42,10 @@ export const findCode = defineTool({
     const scope = resolveSearchScope(engine.workspaceRoot, params.paths, params.include_tests);
     const ir = parseQuery(params.query, { forcedFocus: params.focus });
     const plan = planQuery(ir);
-    const index = getWorkspaceIndex(scope);
+    // Phase 2A: build a snapshot resolver so dirty (unsaved) files are indexed from
+    // the editor's in-memory buffer rather than from stale on-disk content.
+    const snapshot = buildSnapshotResolver(engine.docManager, engine.workspaceRoot);
+    const index = getWorkspaceIndex(scope, { snapshot });
     const spec = compileEffectiveSearchSpec(ir, plan);
 
     const behavior = plan.retrievers.includes('behavior')

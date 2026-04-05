@@ -4,18 +4,30 @@ import type { LspEngine } from '../../engine/LspEngine.js';
 import { parseSourceFile } from '../../analysis/ts/parseSourceFile.js';
 import { absoluteCandidateKey, lspLocationToKey } from '../ranking/candidateIdentity.js';
 import { buildSnippetFromFile } from '../../analysis/ts/snippets.js';
+import { getAdapterGraphDenylist } from '../../adapters/registry.js';
 
-/** Builtins and framework symbols that should never be promoted as implementation roots. */
-const BUILTIN_DENYLIST = new Set([
-  'useState', 'useEffect', 'useMemo', 'useCallback', 'useRef', 'useContext',
-  'useReducer', 'useLayoutEffect', 'useImperativeHandle', 'useDebugValue',
+/**
+ * Core JS/TS runtime builtins that should never be promoted as implementation roots.
+ * Framework-specific symbols (React hooks, Express Router, Next.js helpers, etc.)
+ * are now contributed by Phase 2E adapters via getAdapterGraphDenylist().
+ */
+const CORE_DENYLIST = new Set([
   'fetch', 'console', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval',
   'Promise', 'JSON', 'Math', 'Object', 'Array', 'Map', 'Set', 'Date', 'Error',
   'require', 'import', 'exports', 'module',
   'document', 'window', 'process', 'global', 'globalThis',
   'addEventListener', 'removeEventListener', 'dispatchEvent',
-  'createElement', 'createContext', 'createRef', 'forwardRef', 'memo', 'lazy',
 ]);
+
+/** Lazily merged denylist: core builtins + all adapter-contributed framework symbols. */
+let cachedDenylist: Set<string> | null = null;
+function getEffectiveDenylist(): Set<string> {
+  if (cachedDenylist) return cachedDenylist;
+  const merged = new Set(CORE_DENYLIST);
+  for (const sym of getAdapterGraphDenylist()) merged.add(sym);
+  cachedDenylist = merged;
+  return merged;
+}
 
 export interface GraphExpansionResult {
   promoted: Map<string, { scoreDelta: number; evidence: string[] }>;
@@ -51,7 +63,7 @@ export async function expandToImplementationRoots(
 
       // Skip if the call target is a builtin/framework symbol — not a real root
       const leafTarget = wrapperInfo.callTarget.split('.').pop() ?? wrapperInfo.callTarget;
-      if (BUILTIN_DENYLIST.has(leafTarget)) continue;
+      if (getEffectiveDenylist().has(leafTarget)) continue;
 
       // Demote wrapper — strength based on confidence
       const wrapperKey = absoluteCandidateKey(candidate);

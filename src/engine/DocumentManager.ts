@@ -63,6 +63,40 @@ export class DocumentManager {
     return content;
   }
 
+  /**
+   * Apply an in-memory edit to an already-open document (e.g. from editor didChange).
+   * Updates the cached content and sends textDocument/didChange to the language server.
+   * If the file is not yet open, opens it first with the given content.
+   */
+  async applyEdit(filePath: string, newContent: string, connection: MessageConnection): Promise<void> {
+    const uri = pathToUri(filePath);
+    const existing = this.openDocs.get(uri);
+
+    if (existing) {
+      existing.version++;
+      existing.content = newContent;
+      connection.sendNotification('textDocument/didChange', {
+        textDocument: { uri, version: existing.version },
+        contentChanges: [{ text: newContent }],
+      });
+    } else {
+      const languageId = this.detectLanguage(filePath);
+      const doc: OpenDocument = { uri, version: 1, content: newContent, languageId };
+      this.openDocs.set(uri, doc);
+      connection.sendNotification('textDocument/didOpen', {
+        textDocument: { uri, languageId, version: 1, text: newContent },
+      });
+    }
+  }
+
+  /**
+   * Return a snapshot of all currently open documents.
+   * Used by OverlayStore to build a WorkspaceSnapshot.
+   */
+  getOpenDocuments(): ReadonlyMap<string, Readonly<{ uri: string; version: number; content: string; languageId: string }>> {
+    return this.openDocs;
+  }
+
   getContent(uri: string): string | undefined {
     return this.openDocs.get(uri)?.content;
   }

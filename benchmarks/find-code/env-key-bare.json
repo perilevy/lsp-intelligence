@@ -1,0 +1,12 @@
+{
+  "id": "env-key-bare",
+  "category": "env",
+  "query": "DATABASE_URL",
+  "fixture": "monorepo",
+  "expected": {
+    "retrievers": ["config"],
+    "topFiles": ["config.ts"],
+    "confidenceFloor": "low"
+  },
+  "notes": "Bare env key query (all-caps with underscores) should be detected as env-key pattern and route to config retriever."
+}

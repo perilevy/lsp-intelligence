@@ -1,0 +1,12 @@
+{
+  "id": "env-var-usage",
+  "category": "env",
+  "query": "where is API_BASE_URL used",
+  "fixture": "monorepo",
+  "expected": {
+    "retrievers": ["config"],
+    "topFiles": ["config.ts"],
+    "confidenceFloor": "low"
+  },
+  "notes": "Env-key-like query should route to config retriever and find the process.env.API_BASE_URL usage in config.ts."
+}

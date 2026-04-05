@@ -42,6 +42,16 @@ export function compileEffectiveSearchSpec(ir: QueryIR, plan: SearchPlan): Effec
     if (CONFIG_WORDS.has(tok)) configTerms.push(tok);
   }
 
+  // Propagate env-key tokens (SCREAMING_SNAKE_CASE from raw query) as config terms
+  // so the config retriever can rank env-usage results by the actual key name.
+  // Use ir.raw since exactIdentifiers has underscores stripped.
+  for (const token of ir.raw.split(/\s+/)) {
+    if (/^[A-Z][A-Z0-9_]{2,}$/.test(token) && token.includes('_')) {
+      configTerms.push(token.toLowerCase().replace(/_/g, ' '));
+      configTerms.push(token.toLowerCase());
+    }
+  }
+
   // Merge recipe contributions
   for (const recipe of ir.recipes) {
     recipeIds.push(recipe.id);

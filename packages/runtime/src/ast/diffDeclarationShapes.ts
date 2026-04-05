@@ -134,27 +134,40 @@ function compareDeclarations(base: ExportDeclaration, current: ExportDeclaration
 
   // Interface member comparison
   if (base.declarationKind === 'interface' && current.declarationKind === 'interface') {
-    const baseMembers = new Set(base.members ?? []);
-    const currentMembers = new Set(current.members ?? []);
+    // Build name → optional maps (members may carry "?" suffix from extractBlockMembersFromLines)
+    const baseByName = new Map((base.members ?? []).map((m) => [m.replace('?', ''), m.endsWith('?')] as [string, boolean]));
+    const currentByName = new Map((current.members ?? []).map((m) => [m.replace('?', ''), m.endsWith('?')] as [string, boolean]));
 
-    for (const m of baseMembers) {
-      if (!currentMembers.has(m)) {
+    for (const [name] of baseByName) {
+      if (!currentByName.has(name)) {
         changes.push({
           kind: 'interface_shape_changed',
           risk: 'breaking',
-          reason: `Interface property "${m}" removed`,
-          diffs: [`- ${m}`],
+          reason: `Interface property "${name}" removed`,
+          diffs: [`- ${name}`],
         });
       }
     }
-    for (const m of currentMembers) {
-      if (!baseMembers.has(m)) {
+    for (const [name, isOptional] of currentByName) {
+      if (!baseByName.has(name)) {
         changes.push({
           kind: 'interface_shape_changed',
-          risk: 'risky',
-          reason: `Interface property "${m}" added`,
-          diffs: [`+ ${m}`],
+          risk: isOptional ? 'risky' : 'breaking',
+          reason: isOptional
+            ? `Optional interface property "${name}" added`
+            : `Required interface property "${name}" added — breaking for existing implementations`,
+          diffs: [`+ ${isOptional ? name + '?' : name}`],
         });
+      } else {
+        const wasOptional = baseByName.get(name)!;
+        if (wasOptional && !isOptional) {
+          changes.push({
+            kind: 'interface_shape_changed',
+            risk: 'breaking',
+            reason: `Interface property "${name}" became required (was optional)`,
+            diffs: [`~ ${name}? → ${name}`],
+          });
+        }
       }
     }
     return changes;

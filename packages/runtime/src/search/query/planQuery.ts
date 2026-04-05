@@ -1,5 +1,6 @@
 import type { QueryIR, SearchPlan } from '../types.js';
-import { runAdapters } from '../adapters/registry.js';
+// Phase 2E: use the new IntelligenceAdapter registry instead of the old SearchAdapter registry
+import { runAdapters } from '../../adapters/registry.js';
 
 /**
  * Plan which retrievers to use based on the parsed query IR.

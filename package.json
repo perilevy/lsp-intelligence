@@ -1,6 +1,6 @@
 {
   "name": "lsp-intelligence",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "LSP-powered code intelligence MCP server for AI coding agents",
   "type": "module",
   "bin": {
@@ -20,7 +20,15 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "bench": "tsx benchmarks/run.ts",
-    "bench:e2e": "tsx benchmarks/run.ts --e2e"
+    "bench:e2e": "tsx benchmarks/run.ts --e2e",
+    "bench:api-guard": "tsx benchmarks/run-api-guard.ts",
+    "bench:root-cause": "tsx benchmarks/run-root-cause.ts",
+    "test:overlay": "tsx benchmarks/test-overlay.ts",
+    "test:program": "tsx benchmarks/test-program.ts",
+    "test:typestate": "tsx benchmarks/test-typestate.ts",
+    "test:simulate": "tsx benchmarks/test-simulate.ts",
+    "test:workflows": "tsx benchmarks/test-workflows.ts",
+    "test:cache": "tsx benchmarks/test-cache.ts"
   },
   "dependencies": {
     "@ast-grep/napi": "^0.42.0",

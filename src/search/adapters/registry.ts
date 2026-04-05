@@ -1,23 +1,9 @@
-import type { SearchAdapter } from './types.js';
-import type { QueryIR, SearchRecipe } from '../types.js';
-import { reactAdapter } from './react.js';
-import { httpAdapter } from './http.js';
-import { configAdapter } from './config.js';
-
-const ADAPTERS: SearchAdapter[] = [
-  reactAdapter,
-  httpAdapter,
-  configAdapter,
-];
-
 /**
- * Run all registered adapters against a parsed query IR.
- * Returns all emitted recipes.
+ * Phase 2E migration cutover: this file is now a thin compatibility shim.
+ *
+ * The real adapter registry has moved to src/adapters/registry.ts.
+ * All new code should import from there directly.
+ *
+ * This file is kept for any remaining consumers that import from the old path.
  */
-export function runAdapters(ir: QueryIR): SearchRecipe[] {
-  const recipes: SearchRecipe[] = [];
-  for (const adapter of ADAPTERS) {
-    recipes.push(...adapter.detect(ir));
-  }
-  return recipes;
-}
+export { runAdapters } from '../../adapters/registry.js';

@@ -1,0 +1,11 @@
+{
+  "id": "implementation-root",
+  "category": "implementation-root",
+  "query": "where is permissions checking implemented",
+  "fixture": "monorepo",
+  "expected": {
+    "topFiles": ["validate.ts"],
+    "confidenceFloor": "low"
+  },
+  "notes": "Implementation-root query — canEditItems in validate.ts is the real permissions implementation."
+}

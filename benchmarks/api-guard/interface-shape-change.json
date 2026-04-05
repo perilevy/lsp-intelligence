@@ -2,14 +2,14 @@
   "id": "interface-shape-change",
   "category": "breaking",
   "description": "A required field is added to an exported interface, breaking existing implementations",
-  "fixture": "monorepo",
+  "fixture": "standalone",
   "input": {
     "scope": "changed"
   },
   "expected": {
     "risk": "high",
     "semver": "major",
-    "explanation_contains": ["interface", "required", "field"]
+    "explanation_contains": ["interface", "required", "property"]
   },
   "notes": "Adding required fields to interfaces breaks all implementors."
 }

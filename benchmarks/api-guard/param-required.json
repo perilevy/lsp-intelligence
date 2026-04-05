@@ -1,0 +1,15 @@
+{
+  "id": "param-required",
+  "category": "breaking",
+  "description": "An optional parameter is made required, breaking existing callers who omit it",
+  "fixture": "standalone",
+  "input": {
+    "scope": "changed"
+  },
+  "expected": {
+    "risk": "high",
+    "semver": "major",
+    "explanation_contains": ["required", "param"]
+  },
+  "notes": "Making a parameter required is always a major breaking change."
+}

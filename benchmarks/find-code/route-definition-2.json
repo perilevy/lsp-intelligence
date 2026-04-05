@@ -1,0 +1,11 @@
+{
+  "id": "route-definition-2",
+  "category": "route",
+  "query": "where is the POST /api/users endpoint defined",
+  "fixture": "js-web",
+  "expected": {
+    "topFiles": ["routes.js"],
+    "confidenceFloor": "low"
+  },
+  "notes": "Route-definition query with method + path — should find the Express POST handler in routes.js."
+}
