@@ -38,73 +38,33 @@ Or get a file overview without reading it:
 
 Requires **Node.js 20+**.
 
-### Option 1: Plugin install (recommended)
+### Plugin install (recommended)
 
-Add the marketplace and install the plugin:
-
-```shell
-/plugin marketplace add perilevy/lsp-intelligence
-/plugin install lsp-intelligence@lsp-intelligence
+```
+/plugin marketplace add perilevy1/lsp-intelligence
+/plugin install lsp-intelligence
 /reload-plugins
 ```
 
-The runtime is installed automatically on first session start. If auto-setup doesn't work (enterprise proxy, timeout), run once:
+That's it. The plugin installs the MCP server, skills, hooks, and agent context in one step. No separate runtime install, no manual `.mcp.json` edits.
 
-```bash
-node ~/.claude/plugins/cache/lsp-intelligence/lsp-intelligence/*/scripts/install-runtime.mjs
-```
+### MCP server only (advanced)
 
-### Option 2: Project configuration (team setup)
-
-Add to your project's `.claude/settings.json`:
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "lsp-intelligence": {
-      "source": {
-        "source": "github",
-        "repo": "perilevy/lsp-intelligence"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "lsp-intelligence@lsp-intelligence": true
-  }
-}
-```
-
-### Option 3: MCP server only (no plugin)
-
-For other AI agents or if you only want the raw MCP tools:
+For non-Claude Code agents or manual MCP configuration:
 
 ```json
 {
   "mcpServers": {
-    "lsp": {
+    "lsp-intelligence": {
       "command": "npx",
       "args": ["-y", "lsp-intelligence"],
-      "env": { "LSP_WORKSPACE_ROOT": "${CLAUDE_PROJECT_DIR}" }
+      "env": { "LSP_WORKSPACE_ROOT": "${workspaceFolder}" }
     }
   }
 }
 ```
 
-### Troubleshooting
-
-If the MCP server doesn't connect:
-
-```bash
-# Check runtime health
-node ~/.claude/plugins/cache/lsp-intelligence/lsp-intelligence/*/scripts/doctor-runtime.mjs
-
-# Reinstall runtime
-node ~/.claude/plugins/cache/lsp-intelligence/lsp-intelligence/*/scripts/install-runtime.mjs
-
-# Or install globally
-npm install -g lsp-intelligence@0.2.2-beta.1
-```
-```
+This gives you the raw MCP tools only — no skills or hooks.
 
 ## Capabilities
 

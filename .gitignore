@@ -5,3 +5,4 @@ tmp
 *.tsbuildinfo
 yarn-error.log
 .idea
+.DS_Store

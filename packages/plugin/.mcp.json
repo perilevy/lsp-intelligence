@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "lsp": {
-      "command": "/bin/sh",
-      "args": ["-c", "LSP_WORKSPACE_ROOT=\"$PWD\" exec node \"${CLAUDE_PLUGIN_ROOT}/scripts/launch-runtime.mjs\""]
-    }
-  }
-}

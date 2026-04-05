@@ -1,14 +1,18 @@
 {
   "name": "lsp-intelligence",
-  "version": "0.3.0",
-  "private": true,
-  "description": "LSP-powered code intelligence MCP server for AI coding agents — development root (publish from packages/runtime/)",
+  "version": "0.3.1",
+  "description": "Local code intelligence for TypeScript/JavaScript — Find code, explain failures, guard API contracts, simulate changes.",
   "type": "module",
   "bin": {
     "lsp-intelligence": "./dist/index.js"
   },
   "files": [
     "dist",
+    ".claude-plugin",
+    "skills",
+    "hooks",
+    "scripts",
+    "CLAUDE.md",
     "README.md",
     "LICENSE"
   ],

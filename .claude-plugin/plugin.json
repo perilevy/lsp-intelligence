@@ -1,11 +1,14 @@
 {
   "name": "lsp-intelligence",
   "description": "Local code intelligence for TypeScript/JavaScript — Find code, explain failures, guard API contracts, simulate changes.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "mcpServers": {
     "lsp-intelligence": {
-      "command": "npx",
-      "args": ["-y", "--prefer-offline", "lsp-intelligence@0.3.0"]
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/launch.mjs"],
+      "env": {
+        "LSP_WORKSPACE_ROOT": "${CLAUDE_PROJECT_DIR}"
+      }
     }
   }
 }

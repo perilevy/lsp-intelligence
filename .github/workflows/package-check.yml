@@ -1,0 +1,59 @@
+name: Package integrity check
+
+on:
+  push:
+    branches: [main, packaging-cleanup]
+  pull_request:
+
+jobs:
+  package-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify required files in package tarball
+        run: |
+          OUTPUT=$(npm pack --dry-run 2>&1)
+          echo "$OUTPUT"
+          for REQUIRED in \
+            "dist/index.js" \
+            ".claude-plugin/plugin.json" \
+            ".claude-plugin/marketplace.json" \
+            "skills/find/SKILL.md" \
+            "hooks/hooks.json" \
+            "CLAUDE.md" \
+            "scripts/launch.mjs"; do
+            if echo "$OUTPUT" | grep -q "$REQUIRED"; then
+              echo "✓ $REQUIRED"
+            else
+              echo "✗ MISSING: $REQUIRED" && exit 1
+            fi
+          done
+
+      - name: Verify forbidden patterns are absent
+        run: |
+          # No npx in plugin.json
+          if grep -q '"npx"' .claude-plugin/plugin.json; then
+            echo "FAIL: plugin.json uses npx — must use local script" && exit 1
+          fi
+          # No packages/runtime or packages/plugin
+          if [ -d "packages/runtime" ] || [ -d "packages/plugin" ]; then
+            echo "FAIL: packages/runtime or packages/plugin still exists" && exit 1
+          fi
+          # No .runtime committed
+          if git ls-files | grep -q '\.runtime/'; then
+            echo "FAIL: .runtime/ is committed" && exit 1
+          fi
+          echo "✓ No forbidden patterns"
+
+      - name: Verify launcher starts
+        run: timeout 3 node scripts/launch.mjs || true

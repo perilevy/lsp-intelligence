@@ -1,8 +1,0 @@
-{
-  "runtime": {
-    "package": "lsp-intelligence",
-    "version": "0.3.0",
-    "node": ">=20",
-    "allowGlobalFallback": true
-  }
-}
