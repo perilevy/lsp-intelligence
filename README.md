@@ -41,7 +41,7 @@ Requires **Node.js 20+**.
 ### Plugin install (recommended)
 
 ```
-/plugin marketplace add perilevy1/lsp-intelligence
+/plugin marketplace add perilevy/lsp-intelligence
 /plugin install lsp-intelligence
 /reload-plugins
 ```
