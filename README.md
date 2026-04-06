@@ -243,10 +243,7 @@ Add to your `.mcp.json`:
   "mcpServers": {
     "lsp": {
       "command": "npx",
-      "args": ["-y", "lsp-intelligence"],
-      "env": {
-        "LSP_WORKSPACE_ROOT": "${CLAUDE_PROJECT_DIR}"
-      }
+      "args": ["-y", "lsp-intelligence"]
     }
   }
 }
@@ -269,10 +266,7 @@ Then in `.mcp.json`:
   "mcpServers": {
     "lsp": {
       "command": "node",
-      "args": ["/absolute/path/to/lsp-intelligence/dist/index.js"],
-      "env": {
-        "LSP_WORKSPACE_ROOT": "${CLAUDE_PROJECT_DIR}"
-      }
+      "args": ["/absolute/path/to/lsp-intelligence/dist/index.js"]
     }
   }
 }
