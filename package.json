@@ -1,6 +1,6 @@
 {
   "name": "lsp-intelligence",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Local code intelligence for TypeScript/JavaScript — Find code, explain failures, guard API contracts, simulate changes.",
   "type": "module",
   "bin": {
