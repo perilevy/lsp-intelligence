@@ -1,6 +1,9 @@
 {
   "name": "lsp-intelligence-marketplace",
   "description": "Official marketplace for the lsp-intelligence Claude Code plugin",
+  "owner": {
+    "name": "Peri Levy"
+  },
   "plugins": [
     {
       "name": "lsp-intelligence",
